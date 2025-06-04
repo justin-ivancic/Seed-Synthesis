@@ -32,6 +32,7 @@ const CANVAS_HEIGHT          = GRID_ROWS * TILE_SIZE;
 
 const INITIAL_MONEY   = 100;
 const BANNER_DURATION = 2000; // milliseconds
+const VERSION = "v.0.0.9";
 
 class Boot extends Phaser.Scene {
   constructor() {
@@ -92,6 +93,14 @@ class Title extends Phaser.Scene {
     playButton.on('pointerdown', () => {
       this.scene.start('Farm');
     });
+
+    // Version display
+    this.add.text(
+      CANVAS_WIDTH - 4,
+      CANVAS_HEIGHT - 4,
+      VERSION,
+      { font: '12px Arial', fill: '#ffffff' }
+    ).setOrigin(1,1);
   }
 }
 
@@ -186,6 +195,14 @@ class Farm extends Phaser.Scene {
     this.input.keyboard.on('keydown-ESC', () => {
       this.scene.start('Title');
     });
+
+    // Version display
+    this.add.text(
+      CANVAS_WIDTH - 4,
+      CANVAS_HEIGHT - 4,
+      VERSION,
+      { font: '12px Arial', fill: '#ffffff' }
+    ).setOrigin(1,1);
 
     // Load saved game state before timers
     this.loadGame();
