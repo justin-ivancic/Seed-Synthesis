@@ -128,14 +128,19 @@ class Title extends Phaser.Scene {
     });
 
     // Version display
-    this.add.text(
+    this.versionText = this.add.text(
       CANVAS_WIDTH - 4,
       CANVAS_HEIGHT - 4,
       VERSION,
       { font: '12px Arial', fill: '#ffffff' }
     )
       .setOrigin(1,1)
-      .setDepth(2000);
+      .setDepth(10000);
+
+    this.scale.on('resize', (gameSize) => {
+      const { width, height } = gameSize;
+      this.versionText.setPosition(width - 4, height - 4);
+    });
   }
 }
 
@@ -338,14 +343,19 @@ class Farm extends Phaser.Scene {
     });
 
     // Version display
-    this.add.text(
+    this.versionText = this.add.text(
       CANVAS_WIDTH - 4,
       CANVAS_HEIGHT - 4,
       VERSION,
       { font: '12px Arial', fill: '#ffffff' }
     )
       .setOrigin(1,1)
-      .setDepth(2000);
+      .setDepth(10000);
+
+    this.scale.on('resize', (gameSize) => {
+      const { width, height } = gameSize;
+      this.versionText.setPosition(width - 4, height - 4);
+    });
 
     // Load saved game state before timers
     this.loadGame();
