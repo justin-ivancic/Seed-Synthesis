@@ -26,13 +26,14 @@ const UI_BANNER_SIZE         = { width: 96, height: 96 };  // banner icon enlarg
 const UI_CLEAR_BUTTON_SIZE   = { width: 32, height: 32 };
 const UI_NEWGAME_BUTTON_SIZE = { width: 32, height: 32 };
 const UI_PLAY_BUTTON_SIZE    = { width: 64, height: 64 }; // play button enlarged 2x
+const FARM_GIRL_SIZE         = { width: 160, height: 160 }; // congratulatory sprite size
 
 const CANVAS_WIDTH           = SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE + RIGHT_SIDEBAR_WIDTH;
 const CANVAS_HEIGHT          = GRID_ROWS * TILE_SIZE;
 
 const INITIAL_MONEY   = 100;
 const BANNER_DURATION = 2000; // milliseconds
-const VERSION = "v.0.1.0";
+const VERSION = "v.0.1.1";
 
 class Boot extends Phaser.Scene {
   constructor() {
@@ -54,6 +55,7 @@ class Boot extends Phaser.Scene {
     this.load.image('ui_money',             'assets/default/ui_money.png');
     this.load.image('ui_clearcropselection','assets/default/ui_clearcropselection.png');
     this.load.image('ui_newgame',          'assets/default/ui_newgame.png');
+    this.load.image('char_farmgirl',       'assets/default/char_farmgirl.png');
     // Also load these unused assets so they’re available:
     this.load.image('ui_lab',   'assets/default/ui_lab.png');
     this.load.image('ui_scythe','assets/default/ui_scythe.png');
@@ -123,6 +125,8 @@ class Farm extends Phaser.Scene {
     this.ghostSprite   = null;
     this.bannerVisible = false;
     this.bannerTimer   = null;
+    this.farmGirlShown = localStorage.getItem('farmGirlShown') === 'true';
+    this.farmGirlTimer = null;
 
     // b. Draw the 15×15 Grid Background
     for (let row = 0; row < GRID_ROWS; row++) {
@@ -138,13 +142,15 @@ class Farm extends Phaser.Scene {
     // c. Sidebar UI
     // 1. Money Display
     let moneyX = SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE) / 2 - TILE_SIZE;
-    this.add.image(moneyX, TILE_SIZE / 2, 'ui_money')
-      .setDisplaySize(UI_MONEY_SIZE.width, UI_MONEY_SIZE.height);
-    this.moneyText = this.add.text(
-      moneyX + TILE_SIZE / 2 + 4, TILE_SIZE / 2,
-      "$" + this.money,
-      { font: "18px Arial", fill: "#ffffff" }
-    );
+  this.add.image(moneyX, TILE_SIZE / 2, 'ui_money')
+    .setDisplaySize(UI_MONEY_SIZE.width, UI_MONEY_SIZE.height)
+    .setDepth(1000);
+  this.moneyText = this.add.text(
+    moneyX + TILE_SIZE / 2 + 4, TILE_SIZE / 2,
+    "$" + this.money,
+    { font: "18px Arial", fill: "#ffffff" }
+  );
+  this.moneyText.setDepth(1000);
 
     // 2. Banner Placeholder
     this.bannerImage = this.add.image(
@@ -153,12 +159,43 @@ class Farm extends Phaser.Scene {
       'ui_notenoughmoney'
     )
       .setDisplaySize(UI_BANNER_SIZE.width, UI_BANNER_SIZE.height)
-      .setVisible(false);
+      .setVisible(false)
+      .setDepth(1000);
+
+    // Farm girl congratulatory message elements
+    const farmGirlY = CANVAS_HEIGHT / 2 - FARM_GIRL_SIZE.height / 4;
+    this.farmGirlSprite = this.add.image(
+      CANVAS_WIDTH / 2,
+      farmGirlY,
+      'char_farmgirl'
+    )
+      .setDisplaySize(FARM_GIRL_SIZE.width, FARM_GIRL_SIZE.height)
+      .setVisible(false)
+      .setDepth(1500);
+    const congratsMsg =
+      'Wow! Congratulations!\n' +
+      'Keep going and farm more to earn more money!\n' +
+      'Especially if you are called Georg or Allan!';
+    this.farmGirlText = this.add.text(
+      CANVAS_WIDTH / 2,
+      farmGirlY + FARM_GIRL_SIZE.height / 2 + 10,
+      congratsMsg,
+      {
+        font: '16px Arial',
+        fill: '#ffffff',
+        align: 'center',
+        wordWrap: { width: CANVAS_WIDTH - 80 }
+      }
+    )
+      .setOrigin(0.5, 0)
+      .setVisible(false)
+      .setDepth(1500);
 
     // 3. “X” Clear-Selection Button
     let clearBtn = this.add.image(TILE_SIZE / 2, TILE_SIZE * 2, 'ui_clearcropselection')
                          .setDisplaySize(UI_CLEAR_BUTTON_SIZE.width, UI_CLEAR_BUTTON_SIZE.height)
-                         .setInteractive();
+                         .setInteractive()
+                         .setDepth(1000);
     clearBtn.on('pointerdown', () => { this.clearSelection(); });
 
     // 4. Crop Icons + Stats
@@ -168,10 +205,26 @@ class Farm extends Phaser.Scene {
       let yIcon = TILE_SIZE * 3 + index * CROP_ICON_SPACING;
       let icon = this.add.image(xIcon, yIcon, 'crop_' + cropKey)
                          .setDisplaySize(CROP_SPRITE_SIZE.width, CROP_SPRITE_SIZE.height)
-                         .setInteractive();
-      this.add.text(xIcon + TILE_SIZE/2 + 5, yIcon - CROP_TEXT_SIZE, "Cost: $" + CROP_DATA[cropKey].seedCost, { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" });
-      this.add.text(xIcon + TILE_SIZE/2 + 5, yIcon,  "Sell: $" + CROP_DATA[cropKey].harvestPrice, { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" });
-      this.add.text(xIcon + TILE_SIZE/2 + 5, yIcon + CROP_TEXT_SIZE,  "Time: " + CROP_DATA[cropKey].growthTime + "s", { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" });
+                         .setInteractive()
+                         .setDepth(1000);
+      this.add.text(
+        xIcon + TILE_SIZE/2 + 5,
+        yIcon - CROP_TEXT_SIZE,
+        "Cost: $" + CROP_DATA[cropKey].seedCost,
+        { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" }
+      ).setDepth(1000);
+      this.add.text(
+        xIcon + TILE_SIZE/2 + 5,
+        yIcon,
+        "Sell: $" + CROP_DATA[cropKey].harvestPrice,
+        { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" }
+      ).setDepth(1000);
+      this.add.text(
+        xIcon + TILE_SIZE/2 + 5,
+        yIcon + CROP_TEXT_SIZE,
+        "Time: " + CROP_DATA[cropKey].growthTime + "s",
+        { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" }
+      ).setDepth(1000);
       icon.on('pointerdown', () => { this.selectCrop(cropKey); });
       index++;
     }
@@ -183,7 +236,8 @@ class Farm extends Phaser.Scene {
       'ui_newgame'
     )
       .setDisplaySize(UI_NEWGAME_BUTTON_SIZE.width * 2, UI_NEWGAME_BUTTON_SIZE.height * 2)
-      .setInteractive();
+      .setInteractive()
+      .setDepth(1000);
     newGameBtn.on('pointerdown', () => { this.resetGame(); });
 
     // e. Planting & Harvesting - pointer listener
@@ -333,8 +387,25 @@ class Farm extends Phaser.Scene {
     });
   }
 
+  showFarmGirlMessage() {
+    this.farmGirlSprite.setVisible(true);
+    this.farmGirlText.setVisible(true);
+    if (this.farmGirlTimer) {
+      this.farmGirlTimer.remove();
+    }
+    this.farmGirlTimer = this.time.delayedCall(5000, () => {
+      this.farmGirlSprite.setVisible(false);
+      this.farmGirlText.setVisible(false);
+    });
+  }
+
   updateMoneyText() {
     this.moneyText.setText("$" + this.money);
+    if (!this.farmGirlShown && this.money >= 1000) {
+      this.farmGirlShown = true;
+      localStorage.setItem('farmGirlShown', 'true');
+      this.showFarmGirlMessage();
+    }
   }
 
   saveGame() {
@@ -403,6 +474,12 @@ class Farm extends Phaser.Scene {
         this.bannerTimer = null;
       }
     }
+    if (this.farmGirlTimer) {
+      this.farmGirlTimer.remove();
+      this.farmGirlTimer = null;
+    }
+    this.farmGirlSprite.setVisible(false);
+    this.farmGirlText.setVisible(false);
   }
 
   updateGrowth() {
