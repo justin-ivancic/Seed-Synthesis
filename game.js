@@ -25,6 +25,7 @@ const UI_MONEY_SIZE          = { width: 24, height: 24 };
 const UI_BANNER_SIZE         = { width: 96, height: 96 };  // banner icon enlarged 3x
 const UI_CLEAR_BUTTON_SIZE   = { width: 32, height: 32 };
 const UI_NEWGAME_BUTTON_SIZE = { width: 32, height: 32 };
+const UI_UNLOCK_BUTTON_SIZE = { width: 32, height: 32 }; // unlock button base size
 const UI_PLAY_BUTTON_SIZE    = { width: 64, height: 64 }; // play button enlarged 2x
 const FARM_GIRL_SIZE         = { width: 160, height: 160 }; // congratulatory sprite size
 
@@ -38,6 +39,15 @@ const UNLOCK_PRICES   = [
   1000, 5000, 10000, 25000, 100000, 200000, 300000, 1000000
 ];
 const VERSION = "v.0.1.2";
+
+// Intro timing constants (in milliseconds)
+const INTRO_FADE_DURATION = 500;
+const INTRO_DISPLAY_TIME  = 5000;
+
+// Bounce animation constants for fully-grown crops
+const BOUNCE_PIXELS   = 3;      // vertical bounce amount
+const BOUNCE_SCALE    = 0.05;   // ±5% scale change
+const BOUNCE_DURATION = 1000;   // duration of bounce cycle
 
 class Boot extends Phaser.Scene {
   constructor() {
@@ -61,6 +71,9 @@ class Boot extends Phaser.Scene {
     this.load.image('ui_newgame',          'assets/default/ui_newgame.png');
     this.load.image('ui_unlock',           'assets/default/ui_unlock.png');
     this.load.image('char_farmgirl',       'assets/default/char_farmgirl.png');
+    this.load.image('char_farmgirl_dissatisfied',
+                   'assets/default/char_farmgirl_dissatisfied.png');
+    this.load.image('char_oldman', 'assets/default/char_oldman.png');
     // Also load these unused assets so they’re available:
     this.load.image('ui_lab',   'assets/default/ui_lab.png');
     this.load.image('ui_scythe','assets/default/ui_scythe.png');
@@ -101,7 +114,7 @@ class Title extends Phaser.Scene {
       .setDisplaySize(UI_PLAY_BUTTON_SIZE.width, UI_PLAY_BUTTON_SIZE.height)
       .setInteractive();
     playButton.on('pointerdown', () => {
-      this.scene.start('Farm');
+      this.scene.start('Farm', { showIntro: true });
     });
 
     // Version display
@@ -121,13 +134,12 @@ class Farm extends Phaser.Scene {
     super('Farm');
   }
 
-  create() {
+  create(data) {
     // a. Initialize State Variables
     this.gridState    = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
     this.plantSprites = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
     this.tileSprites  = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
     this.lockTints    = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
-    this.lockIcons    = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
     this.unlockButtons = Array(9).fill(null);
     this.parcelsUnlocked = Array(9).fill(false);
     this.parcelsUnlocked[4] = true;
@@ -156,11 +168,6 @@ class Farm extends Phaser.Scene {
           .setVisible(false)
           .setDepth(400);
         this.lockTints[row][col] = tint;
-        const lockIcon = this.add.image(x, y, 'ui_unlock')
-          .setDisplaySize(16,16)
-          .setVisible(false)
-          .setDepth(401);
-        this.lockIcons[row][col] = lockIcon;
       }
     }
 
@@ -315,6 +322,10 @@ class Farm extends Phaser.Scene {
     // Load saved game state before timers
     this.loadGame();
 
+    if (data && data.showIntro) {
+      this.startIntroSequence();
+    }
+
     // i. Growth Timer
     this.time.addEvent({
       delay: 1000,
@@ -429,6 +440,10 @@ class Farm extends Phaser.Scene {
   harvestCrop(row, col) {
     let cell = this.gridState[row][col];
     let cropType = cell.cropType;
+    if (this.plantSprites[row][col].bounceTween) {
+      this.plantSprites[row][col].bounceTween.stop();
+      this.plantSprites[row][col].bounceTween = null;
+    }
     this.plantSprites[row][col].destroy();
     this.plantSprites[row][col] = null;
     this.gridState[row][col] = null;
@@ -463,6 +478,75 @@ class Farm extends Phaser.Scene {
     this.farmGirlTimer = this.time.delayedCall(5000, () => {
       this.farmGirlSprite.setVisible(false);
       this.farmGirlText.setVisible(false);
+    });
+  }
+
+  startIntroSequence() {
+    const rightX = CANVAS_WIDTH - FARM_GIRL_SIZE.width / 2 - 10;
+    const leftX  = FARM_GIRL_SIZE.width / 2 + 10;
+    const yPos   = CANVAS_HEIGHT / 2 - FARM_GIRL_SIZE.height / 4;
+
+    this.introGirl = this.add.image(rightX, yPos, 'char_farmgirl_dissatisfied')
+      .setDisplaySize(FARM_GIRL_SIZE.width, FARM_GIRL_SIZE.height)
+      .setAlpha(0)
+      .setDepth(2000);
+    const girlText = "Hmpf! You're too poor for me. You better work hard if you want me to come back!";
+    this.introGirlText = this.add.text(rightX, yPos + FARM_GIRL_SIZE.height / 2 + 10, girlText, {
+      font: '16px Arial',
+      fill: '#ffffff',
+      align: 'center',
+      wordWrap: { width: CANVAS_WIDTH - 80 }
+    })
+      .setOrigin(0.5, 0)
+      .setAlpha(0)
+      .setDepth(2000);
+
+    this.introOldMan = this.add.image(leftX, yPos, 'char_oldman')
+      .setDisplaySize(FARM_GIRL_SIZE.width, FARM_GIRL_SIZE.height)
+      .setAlpha(0)
+      .setDepth(2000);
+    const oldManStr = "Oh oh oh... Young People sure have spirit don't they. You better work hard if you don't want to end up old and lone like me young one.";
+    this.introOldManText = this.add.text(leftX, yPos + FARM_GIRL_SIZE.height / 2 + 10, oldManStr, {
+      font: '16px Arial',
+      fill: '#ffffff',
+      align: 'center',
+      wordWrap: { width: CANVAS_WIDTH - 80 }
+    })
+      .setOrigin(0.5, 0)
+      .setAlpha(0)
+      .setDepth(2000);
+
+    this.tweens.add({
+      targets: [this.introGirl, this.introGirlText],
+      alpha: 1,
+      duration: INTRO_FADE_DURATION,
+      onComplete: () => {
+        this.time.delayedCall(INTRO_DISPLAY_TIME, () => {
+          this.tweens.add({
+            targets: [this.introGirl, this.introGirlText],
+            alpha: 0,
+            duration: INTRO_FADE_DURATION,
+            onComplete: () => {
+              this.time.delayedCall(1000, () => {
+                this.tweens.add({
+                  targets: [this.introOldMan, this.introOldManText],
+                  alpha: 1,
+                  duration: INTRO_FADE_DURATION,
+                  onComplete: () => {
+                    this.time.delayedCall(INTRO_DISPLAY_TIME, () => {
+                      this.tweens.add({
+                        targets: [this.introOldMan, this.introOldManText],
+                        alpha: 0,
+                        duration: INTRO_FADE_DURATION
+                      });
+                    });
+                  }
+                });
+              });
+            }
+          });
+        });
+      }
     });
   }
 
@@ -503,14 +587,30 @@ class Farm extends Phaser.Scene {
           if (cell !== null) {
             let elapsed = (Date.now() - cell.plantedAt) / 1000;
             let progress = Phaser.Math.Clamp(elapsed / cell.growthTime, 0, 1);
-            let scale = 0.1 + 0.9 * progress;
             let x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2;
             let y = row * TILE_SIZE + TILE_SIZE/2;
-            let sprite = this.add.image(x, y, 'crop_' + cell.cropType)
-                                .setDisplaySize(
-                                  CROP_SPRITE_SIZE.width * scale,
-                                  CROP_SPRITE_SIZE.height * scale
-                                );
+            let sprite = this.add.image(x, y, 'crop_' + cell.cropType);
+            if (progress >= 1) {
+              sprite.setDisplaySize(
+                CROP_SPRITE_SIZE.width,
+                CROP_SPRITE_SIZE.height
+              );
+              sprite.bounceTween = this.tweens.add({
+                targets: sprite,
+                y: sprite.y - BOUNCE_PIXELS,
+                scaleX: 1 + BOUNCE_SCALE,
+                scaleY: 1 + BOUNCE_SCALE,
+                duration: BOUNCE_DURATION,
+                yoyo: true,
+                repeat: -1
+              });
+            } else {
+              let scale = 0.1 + 0.9 * progress;
+              sprite.setDisplaySize(
+                CROP_SPRITE_SIZE.width * scale,
+                CROP_SPRITE_SIZE.height * scale
+              );
+            }
             this.plantSprites[row][col] = sprite;
             this.gridState[row][col] = {
               cropType: cell.cropType,
@@ -528,6 +628,10 @@ class Farm extends Phaser.Scene {
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS; col++) {
         if (this.plantSprites[row][col]) {
+          if (this.plantSprites[row][col].bounceTween) {
+            this.plantSprites[row][col].bounceTween.stop();
+            this.plantSprites[row][col].bounceTween = null;
+          }
           this.plantSprites[row][col].destroy();
         }
         this.plantSprites[row][col] = null;
@@ -571,18 +675,16 @@ class Farm extends Phaser.Scene {
           if (unlocked) {
             if (this.lockTints[row][col].visible) {
               this.tweens.add({
-                targets: [this.lockTints[row][col], this.lockIcons[row][col]],
+                targets: [this.lockTints[row][col]],
                 alpha: 0,
                 duration: 200,
                 onComplete: () => {
                   this.lockTints[row][col].setVisible(false).setAlpha(0.6);
-                  this.lockIcons[row][col].setVisible(false).setAlpha(1);
                 }
               });
             }
           } else {
             this.lockTints[row][col].setVisible(true).setAlpha(0.6);
-            this.lockIcons[row][col].setVisible(true).setAlpha(1);
           }
         }
       }
@@ -595,7 +697,10 @@ class Farm extends Phaser.Scene {
       if (!unlocked && this.isParcelEligible(i)) {
         const center = this.getParcelCenter(i);
         const btn = this.add.image(center.x, center.y, 'ui_unlock')
-          .setDisplaySize(32,32)
+          .setDisplaySize(
+            UI_UNLOCK_BUTTON_SIZE.width * 2,
+            UI_UNLOCK_BUTTON_SIZE.height * 2
+          )
           .setInteractive()
           .setDepth(1000);
         btn.on('pointerover', () => {
@@ -661,11 +766,30 @@ class Farm extends Phaser.Scene {
         if (cell !== null) {
           let elapsed = (Date.now() - cell.plantedAt) / 1000;
           let progress = Phaser.Math.Clamp(elapsed / cell.growthTime, 0, 1);
-          let scale = 0.1 + 0.9 * progress;
-          this.plantSprites[row][col].setDisplaySize(
-            CROP_SPRITE_SIZE.width * scale,
-            CROP_SPRITE_SIZE.height * scale
-          );
+          let sprite = this.plantSprites[row][col];
+          if (progress >= 1) {
+            if (!sprite.bounceTween) {
+              sprite.setDisplaySize(
+                CROP_SPRITE_SIZE.width,
+                CROP_SPRITE_SIZE.height
+              );
+              sprite.bounceTween = this.tweens.add({
+                targets: sprite,
+                y: sprite.y - BOUNCE_PIXELS,
+                scaleX: 1 + BOUNCE_SCALE,
+                scaleY: 1 + BOUNCE_SCALE,
+                duration: BOUNCE_DURATION,
+                yoyo: true,
+                repeat: -1
+              });
+            }
+          } else {
+            let scale = 0.1 + 0.9 * progress;
+            sprite.setDisplaySize(
+              CROP_SPRITE_SIZE.width * scale,
+              CROP_SPRITE_SIZE.height * scale
+            );
+          }
         }
       }
     }
