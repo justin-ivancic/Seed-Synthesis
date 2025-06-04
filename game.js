@@ -1,10 +1,20 @@
 const CROP_DATA = {
-  wheat:      { seedCost: 5,  harvestPrice: 12, growthTime: 9  },
-  corn:       { seedCost: 8,  harvestPrice: 18, growthTime: 12 },
-  tomato:     { seedCost: 10, harvestPrice: 22, growthTime: 30 },
-  carrot:     { seedCost: 6,  harvestPrice: 14, growthTime: 8  },
-  flower:     { seedCost: 4,  harvestPrice: 10, growthTime: 60 },
-  glowshroom: { seedCost: 12, harvestPrice: 30, growthTime: 120 }
+  carrot:     { seedCost: 5,   harvestPrice: 9,   growthTime: 8   },
+  wheat:      { seedCost: 7,   harvestPrice: 13,  growthTime: 12  },
+  corn:       { seedCost: 10,  harvestPrice: 18,  growthTime: 20  },
+  flower:     { seedCost: 20,  harvestPrice: 36,  growthTime: 60  },
+  tomato:     { seedCost: 40,  harvestPrice: 70,  growthTime: 180 },
+  glowshroom: { seedCost: 100, harvestPrice: 180, growthTime: 600 }
+};
+
+const CROP_ORDER = ['carrot', 'wheat', 'corn', 'flower', 'tomato', 'glowshroom'];
+
+const CROP_UNLOCK_PRICES = {
+  wheat: 1000,
+  corn: 1500,
+  flower: 2000,
+  tomato: 2500,
+  glowshroom: 5000
 };
 
 // ---------------------------------------------------------------------------
@@ -38,7 +48,7 @@ const PARCEL_SIZE     = 5;
 const UNLOCK_PRICES   = [
   1000, 5000, 10000, 25000, 100000, 200000, 300000, 1000000
 ];
-const VERSION = "v.0.1.2";
+const VERSION = "v.0.1.3";
 
 // Intro timing constants (in milliseconds)
 const INTRO_FADE_DURATION = 500;
@@ -144,6 +154,17 @@ class Farm extends Phaser.Scene {
     this.parcelsUnlocked = Array(9).fill(false);
     this.parcelsUnlocked[4] = true;
     this.unlockedCount = 1;
+    this.cropsUnlocked = {
+      carrot: true,
+      wheat: false,
+      corn: false,
+      flower: false,
+      tomato: false,
+      glowshroom: false
+    };
+    this.cropIcons = {};
+    this.cropTexts = {};
+    this.cropUnlockButtons = {};
     this.money         = INITIAL_MONEY;
     this.selectedCrop  = null;
     this.ghostSprite   = null;
@@ -254,34 +275,37 @@ class Farm extends Phaser.Scene {
 
     // 4. Crop Icons + Stats
     let index = 0;
-    for (let cropKey of Object.keys(CROP_DATA)) {
+    for (let cropKey of CROP_ORDER) {
       let xIcon = TILE_SIZE / 2 - 8;
       let yIcon = TILE_SIZE * 3 + index * CROP_ICON_SPACING;
       let icon = this.add.image(xIcon, yIcon, 'crop_' + cropKey)
                          .setDisplaySize(CROP_SPRITE_SIZE.width, CROP_SPRITE_SIZE.height)
-                         .setInteractive()
                          .setDepth(1000);
-      this.add.text(
+      let costText = this.add.text(
         xIcon + TILE_SIZE/2 + 5,
         yIcon - CROP_TEXT_SIZE,
         "Cost: $" + CROP_DATA[cropKey].seedCost,
         { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" }
       ).setDepth(1000);
-      this.add.text(
+      let sellText = this.add.text(
         xIcon + TILE_SIZE/2 + 5,
         yIcon,
         "Sell: $" + CROP_DATA[cropKey].harvestPrice,
         { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" }
       ).setDepth(1000);
-      this.add.text(
+      let timeText = this.add.text(
         xIcon + TILE_SIZE/2 + 5,
         yIcon + CROP_TEXT_SIZE,
         "Time: " + CROP_DATA[cropKey].growthTime + "s",
         { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" }
       ).setDepth(1000);
       icon.on('pointerdown', () => { this.selectCrop(cropKey); });
+      this.cropIcons[cropKey] = icon;
+      this.cropTexts[cropKey] = [costText, sellText, timeText];
       index++;
     }
+
+    this.updateCropVisuals();
 
     // 5. New Game Button
     let newGameBtn = this.add.image(
@@ -410,6 +434,9 @@ class Farm extends Phaser.Scene {
     // Otherwise, if empty & crop selected, plant
     if (cell === null && this.selectedCrop !== null) {
       let cropType = this.selectedCrop;
+      if (!this.cropsUnlocked[cropType]) {
+        return;
+      }
       let cost = CROP_DATA[cropType].seedCost;
       if (this.money < cost) {
         this.showBanner();
@@ -482,6 +509,18 @@ class Farm extends Phaser.Scene {
   }
 
   startIntroSequence() {
+    this.introOverlay = this.add.rectangle(
+      CANVAS_WIDTH / 2,
+      CANVAS_HEIGHT / 2,
+      CANVAS_WIDTH,
+      CANVAS_HEIGHT,
+      0x000000,
+      0.6
+    )
+      .setAlpha(0)
+      .setDepth(1900);
+    this.tweens.add({ targets: this.introOverlay, alpha: 0.6, duration: INTRO_FADE_DURATION });
+
     const rightX = CANVAS_WIDTH - FARM_GIRL_SIZE.width / 2 - 10;
     const leftX  = FARM_GIRL_SIZE.width / 2 + 10;
     const yPos   = CANVAS_HEIGHT / 2 - FARM_GIRL_SIZE.height / 4;
@@ -490,12 +529,12 @@ class Farm extends Phaser.Scene {
       .setDisplaySize(FARM_GIRL_SIZE.width, FARM_GIRL_SIZE.height)
       .setAlpha(0)
       .setDepth(2000);
-    const girlText = "Hmpf! You're too poor for me. You better work hard if you want me to come back!";
+    const girlText = "Hmpf! You're too poor for me.\nYou better work hard if you want me to come back!";
     this.introGirlText = this.add.text(rightX, yPos + FARM_GIRL_SIZE.height / 2 + 10, girlText, {
       font: '16px Arial',
       fill: '#ffffff',
       align: 'center',
-      wordWrap: { width: CANVAS_WIDTH - 80 }
+      wordWrap: { width: CANVAS_WIDTH / 2 - 40 }
     })
       .setOrigin(0.5, 0)
       .setAlpha(0)
@@ -505,12 +544,12 @@ class Farm extends Phaser.Scene {
       .setDisplaySize(FARM_GIRL_SIZE.width, FARM_GIRL_SIZE.height)
       .setAlpha(0)
       .setDepth(2000);
-    const oldManStr = "Oh oh oh... Young People sure have spirit don't they. You better work hard if you don't want to end up old and lone like me young one.";
+    const oldManStr = "Oh oh oh... Young People sure have spirit don't they.\nYou better work hard if you don't want to end up old and lonely like me, young one.";
     this.introOldManText = this.add.text(leftX, yPos + FARM_GIRL_SIZE.height / 2 + 10, oldManStr, {
       font: '16px Arial',
       fill: '#ffffff',
       align: 'center',
-      wordWrap: { width: CANVAS_WIDTH - 80 }
+      wordWrap: { width: CANVAS_WIDTH / 2 - 40 }
     })
       .setOrigin(0.5, 0)
       .setAlpha(0)
@@ -537,7 +576,15 @@ class Farm extends Phaser.Scene {
                       this.tweens.add({
                         targets: [this.introOldMan, this.introOldManText],
                         alpha: 0,
-                        duration: INTRO_FADE_DURATION
+                        duration: INTRO_FADE_DURATION,
+                        onComplete: () => {
+                          this.tweens.add({
+                            targets: this.introOverlay,
+                            alpha: 0,
+                            duration: INTRO_FADE_DURATION,
+                            onComplete: () => { this.introOverlay.destroy(); }
+                          });
+                        }
                       });
                     });
                   }
@@ -564,6 +611,7 @@ class Farm extends Phaser.Scene {
       money: this.money,
       parcelsUnlocked: this.parcelsUnlocked,
       unlockedCount: this.unlockedCount,
+      cropsUnlocked: this.cropsUnlocked,
       gridState: this.gridState.map(row =>
         row.map(cell => cell
           ? { cropType: cell.cropType, plantedAt: cell.plantedAt, growthTime: cell.growthTime }
@@ -580,6 +628,7 @@ class Farm extends Phaser.Scene {
       this.money = saved.money;
       this.parcelsUnlocked = saved.parcelsUnlocked || this.parcelsUnlocked;
       this.unlockedCount = saved.unlockedCount || this.unlockedCount;
+      this.cropsUnlocked = saved.cropsUnlocked || this.cropsUnlocked;
       this.updateMoneyText();
       for (let row = 0; row < GRID_ROWS; row++) {
         for (let col = 0; col < GRID_COLS; col++) {
@@ -595,11 +644,13 @@ class Farm extends Phaser.Scene {
                 CROP_SPRITE_SIZE.width,
                 CROP_SPRITE_SIZE.height
               );
+              sprite.baseScaleX = sprite.scaleX;
+              sprite.baseScaleY = sprite.scaleY;
               sprite.bounceTween = this.tweens.add({
                 targets: sprite,
                 y: sprite.y - BOUNCE_PIXELS,
-                scaleX: 1 + BOUNCE_SCALE,
-                scaleY: 1 + BOUNCE_SCALE,
+                scaleX: sprite.baseScaleX * (1 + BOUNCE_SCALE),
+                scaleY: sprite.baseScaleY * (1 + BOUNCE_SCALE),
                 duration: BOUNCE_DURATION,
                 yoyo: true,
                 repeat: -1
@@ -621,6 +672,7 @@ class Farm extends Phaser.Scene {
         }
       }
     }
+    this.updateCropVisuals();
     this.updateParcelVisuals();
   }
 
@@ -660,6 +712,15 @@ class Farm extends Phaser.Scene {
     this.parcelsUnlocked = Array(9).fill(false);
     this.parcelsUnlocked[4] = true;
     this.unlockedCount = 1;
+    this.cropsUnlocked = {
+      carrot: true,
+      wheat: false,
+      corn: false,
+      flower: false,
+      tomato: false,
+      glowshroom: false
+    };
+    this.updateCropVisuals();
     this.updateParcelVisuals();
   }
 
@@ -759,6 +820,73 @@ class Farm extends Phaser.Scene {
     });
   }
 
+  updateCropVisuals() {
+    for (let cropKey of CROP_ORDER) {
+      const unlocked = this.cropsUnlocked[cropKey];
+      const icon = this.cropIcons[cropKey];
+      const texts = this.cropTexts[cropKey];
+
+      if (unlocked) {
+        icon.clearTint();
+        icon.setInteractive();
+        texts.forEach(t => t.setTint(0xffffff));
+        if (this.cropUnlockButtons[cropKey]) {
+          this.cropUnlockButtons[cropKey].destroy();
+          this.cropUnlockButtons[cropKey] = null;
+        }
+      } else {
+        icon.setTint(0x555555);
+        icon.disableInteractive();
+        texts.forEach(t => t.setTint(0x555555));
+        if (!this.cropUnlockButtons[cropKey]) {
+          const btn = this.add.image(icon.x, icon.y, 'ui_unlock')
+            .setDisplaySize(UI_UNLOCK_BUTTON_SIZE.width * 2, UI_UNLOCK_BUTTON_SIZE.height * 2)
+            .setInteractive()
+            .setDepth(1001);
+          btn.on('pointerover', () => {
+            const cost = CROP_UNLOCK_PRICES[cropKey];
+            this.unlockTooltip.setText(`Unlock Cost: $${cost} - Click to purchase`)
+              .setPosition(icon.x, icon.y - 20)
+              .setVisible(true);
+          });
+          btn.on('pointerout', () => {
+            this.unlockTooltip.setVisible(false);
+          });
+          btn.on('pointerdown', () => {
+            this.showCropUnlockConfirm(cropKey);
+          });
+          this.cropUnlockButtons[cropKey] = btn;
+        }
+      }
+    }
+  }
+
+  showCropUnlockConfirm(cropKey) {
+    const cost = CROP_UNLOCK_PRICES[cropKey];
+    const bannerY = TILE_SIZE * 1.5;
+    this.confirmText.setText(`Unlock ${cropKey.charAt(0).toUpperCase() + cropKey.slice(1)} for $${cost}?`);
+    this.confirmContainer.setPosition(CANVAS_WIDTH / 2, bannerY);
+    this.confirmContainer.setVisible(true);
+    this.confirmYes.removeAllListeners('pointerdown');
+    this.confirmNo.removeAllListeners('pointerdown');
+    this.confirmYes.on('pointerdown', () => {
+      if (this.money >= cost) {
+        this.money -= cost;
+        this.updateMoneyText();
+        this.cropsUnlocked[cropKey] = true;
+        this.confirmContainer.setVisible(false);
+        this.saveGame();
+        this.updateCropVisuals();
+      } else {
+        this.showBanner();
+        this.confirmContainer.setVisible(false);
+      }
+    });
+    this.confirmNo.on('pointerdown', () => {
+      this.confirmContainer.setVisible(false);
+    });
+  }
+
   updateGrowth() {
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS; col++) {
@@ -773,11 +901,13 @@ class Farm extends Phaser.Scene {
                 CROP_SPRITE_SIZE.width,
                 CROP_SPRITE_SIZE.height
               );
+              sprite.baseScaleX = sprite.scaleX;
+              sprite.baseScaleY = sprite.scaleY;
               sprite.bounceTween = this.tweens.add({
                 targets: sprite,
                 y: sprite.y - BOUNCE_PIXELS,
-                scaleX: 1 + BOUNCE_SCALE,
-                scaleY: 1 + BOUNCE_SCALE,
+                scaleX: sprite.baseScaleX * (1 + BOUNCE_SCALE),
+                scaleY: sprite.baseScaleY * (1 + BOUNCE_SCALE),
                 duration: BOUNCE_DURATION,
                 yoyo: true,
                 repeat: -1
