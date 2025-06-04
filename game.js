@@ -48,7 +48,10 @@ const PARCEL_SIZE     = 5;
 const UNLOCK_PRICES   = [
   1000, 5000, 10000, 25000, 100000, 200000, 300000, 1000000
 ];
-const VERSION = "v.0.1.5";
+const VERSION = "v.0.1.7";
+
+// Margin around the edges of the canvas where no game objects are placed
+const BUFFER_MARGIN = 32;
 
 // Intro timing constants (in milliseconds)
 const INTRO_FADE_DURATION = 500;
@@ -129,8 +132,8 @@ class Title extends Phaser.Scene {
 
     // Version display
     this.versionText = this.add.text(
-      CANVAS_WIDTH - 4,
-      CANVAS_HEIGHT - 4,
+      CANVAS_WIDTH - BUFFER_MARGIN,
+      CANVAS_HEIGHT - BUFFER_MARGIN,
       VERSION,
       { font: '12px Arial', fill: '#ffffff' }
     )
@@ -139,7 +142,7 @@ class Title extends Phaser.Scene {
 
     this.scale.on('resize', (gameSize) => {
       const { width, height } = gameSize;
-      this.versionText.setPosition(width - 4, height - 4);
+      this.versionText.setPosition(width - BUFFER_MARGIN, height - BUFFER_MARGIN);
     });
   }
 }
@@ -179,8 +182,17 @@ class Farm extends Phaser.Scene {
     this.farmGirlTimer = null;
 
     // compute offsets to roughly center the grid and sidebars
-    this.offsetX = Math.max(0, Math.floor((CANVAS_WIDTH - (SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE + RIGHT_SIDEBAR_WIDTH)) / 2));
-    this.offsetY = Math.max(0, Math.floor((CANVAS_HEIGHT - GRID_ROWS * TILE_SIZE) / 2));
+    this.offsetX = Math.max(
+      BUFFER_MARGIN,
+      Math.floor(
+        (CANVAS_WIDTH -
+          (SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE + RIGHT_SIDEBAR_WIDTH)) / 2
+      )
+    );
+    this.offsetY = Math.max(
+      BUFFER_MARGIN,
+      Math.floor((CANVAS_HEIGHT - GRID_ROWS * TILE_SIZE) / 2)
+    );
 
     // b. Draw the 15×15 Grid Background and lock overlays
     for (let row = 0; row < GRID_ROWS; row++) {
@@ -344,8 +356,8 @@ class Farm extends Phaser.Scene {
 
     // Version display
     this.versionText = this.add.text(
-      CANVAS_WIDTH - 4,
-      CANVAS_HEIGHT - 4,
+      CANVAS_WIDTH - BUFFER_MARGIN,
+      CANVAS_HEIGHT - BUFFER_MARGIN,
       VERSION,
       { font: '12px Arial', fill: '#ffffff' }
     )
@@ -354,7 +366,7 @@ class Farm extends Phaser.Scene {
 
     this.scale.on('resize', (gameSize) => {
       const { width, height } = gameSize;
-      this.versionText.setPosition(width - 4, height - 4);
+      this.versionText.setPosition(width - BUFFER_MARGIN, height - BUFFER_MARGIN);
     });
 
     // Load saved game state before timers
