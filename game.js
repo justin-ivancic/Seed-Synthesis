@@ -7,36 +7,47 @@ const CROP_DATA = {
   glowshroom: { seedCost: 12, harvestPrice: 30, growthTime: 18 }
 };
 
-const TILE_SIZE = 32;
-const SIDEBAR_WIDTH = TILE_SIZE * 2;
-const MONEY_ICON_SIZE = 24;
-const BANNER_WIDTH = 200;
-const BANNER_HEIGHT = 50;
-const GRID_ROWS = 15;
-const GRID_COLS = 15;
-const INITIAL_MONEY = 100;
-const BANNER_DURATION = 2000;
+const TILE_SIZE       = 32;   // pixel size for each grid cell
+const SIDEBAR_WIDTH   = TILE_SIZE * 2; // two columns wide
+const GRID_ROWS       = 15;
+const GRID_COLS       = 15;
+const INITIAL_MONEY   = 100;
+const BANNER_DURATION = 2000; // milliseconds
+
+// Asset Scale and Layout Constants
+const TILE_SPRITE_SIZE        = { width: 32, height: 32 };       // ground tile
+const CROP_SPRITE_SIZE        = { width: 32, height: 32 };       // crops
+const UI_MONEY_SIZE           = { width: 24, height: 24 };       // money icon
+const UI_BANNER_SIZE          = { width: 64, height: 64 };       // "Not Enough Money" banner
+const UI_CLEAR_BUTTON_SIZE    = { width: 32, height: 32 };       // clear-selection button
+const UI_NEWGAME_BUTTON_SIZE  = { width: 32, height: 32 };       // new-game button
+const CANVAS_WIDTH  = SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE;
+const CANVAS_HEIGHT = GRID_ROWS * TILE_SIZE;
 
 class Boot extends Phaser.Scene {
   constructor() {
     super('Boot');
   }
+
   preload() {
-    this.load.image('tile_empty', 'assets/default/tile_empty.png');
-    this.load.image('crop_wheat', 'assets/default/crop_wheat.png');
-    this.load.image('crop_corn', 'assets/default/crop_corn.png');
-    this.load.image('crop_tomato', 'assets/default/crop_tomato.png');
-    this.load.image('crop_carrot', 'assets/default/crop_carrot.png');
-    this.load.image('crop_flower', 'assets/default/crop_flower.png');
+    this.load.image('tile_empty',      'assets/default/tile_empty.png');
+    this.load.image('crop_wheat',      'assets/default/crop_wheat.png');
+    this.load.image('crop_corn',       'assets/default/crop_corn.png');
+    this.load.image('crop_tomato',     'assets/default/crop_tomato.png');
+    this.load.image('crop_carrot',     'assets/default/crop_carrot.png');
+    this.load.image('crop_flower',     'assets/default/crop_flower.png');
     this.load.image('crop_glowshroom', 'assets/default/crop_glowshroom.png');
     this.load.image('banner_seedsynthesis', 'assets/default/banner_seedsynthesis.png');
-    this.load.image('ui_playbutton', 'assets/default/ui_playbutton.png');
-    this.load.image('ui_notenoughmoney', 'assets/default/ui_notenoughmoney.png');
-    this.load.image('ui_money', 'assets/default/ui_money.png');
-    this.load.image('ui_clearcropselection', 'assets/default/ui_clearcropselection.png');
-    this.load.image('ui_lab', 'assets/default/ui_lab.png');
-    this.load.image('ui_scythe', 'assets/default/ui_scythe.png');
+    this.load.image('ui_playbutton',        'assets/default/ui_playbutton.png');
+    this.load.image('ui_notenoughmoney',    'assets/default/ui_notenoughmoney.png');
+    this.load.image('ui_money',             'assets/default/ui_money.png');
+    this.load.image('ui_clearcropselection','assets/default/ui_clearcropselection.png');
+    this.load.image('ui_newgame',           'assets/default/ui_newgame.png');
+    // Also load these unused assets so they’re available:
+    this.load.image('ui_lab',   'assets/default/ui_lab.png');
+    this.load.image('ui_scythe','assets/default/ui_scythe.png');
   }
+
   create() {
     this.scene.start('Title');
   }
@@ -46,107 +57,118 @@ class Title extends Phaser.Scene {
   constructor() {
     super('Title');
   }
+
   create() {
-    const banner = this.add.image(
-      SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE) / 2,
-      BANNER_HEIGHT / 2,
+    this.add.image(
+      (SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE) / 2,
+      UI_BANNER_SIZE.height / 2,
       'banner_seedsynthesis'
-    );
-    banner.displayWidth = GRID_COLS * TILE_SIZE;
-    banner.displayHeight = BANNER_HEIGHT;
+    ).setDisplaySize(UI_BANNER_SIZE.width, UI_BANNER_SIZE.height);
 
     const playButton = this.add.image(
-      SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE) / 2,
-      BANNER_HEIGHT + 40,
+      (SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE) / 2,
+      UI_BANNER_SIZE.height + TILE_SIZE,
       'ui_playbutton'
-    );
-    playButton.setInteractive();
-    playButton.on('pointerdown', () => this.scene.start('Farm'));
+    )
+      .setDisplaySize(TILE_SIZE, TILE_SIZE)
+      .setInteractive();
+    playButton.on('pointerdown', () => {
+      this.scene.start('Farm');
+    });
   }
 }
 
 class Farm extends Phaser.Scene {
   constructor() {
     super('Farm');
-    this.gridState = [];
-    this.plantSprites = [];
-    this.money = INITIAL_MONEY;
-    this.selectedCrop = null;
-    this.ghostSprite = null;
-    this.bannerVisible = false;
-    this.bannerTimer = null;
   }
 
   create() {
-    this.gridState = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
+    // a. Initialize State Variables
+    this.gridState    = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
     this.plantSprites = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
+    this.money         = INITIAL_MONEY;
+    this.selectedCrop  = null;
+    this.ghostSprite   = null;
+    this.bannerVisible = false;
+    this.bannerTimer   = null;
 
+    // b. Draw the 15×15 Grid Background
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS; col++) {
-        const x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE / 2;
-        const y = row * TILE_SIZE + TILE_SIZE / 2;
-        const tile = this.add.image(x, y, 'tile_empty');
-        tile.displayWidth = TILE_SIZE;
-        tile.displayHeight = TILE_SIZE;
+        let x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE / 2;
+        let y = row * TILE_SIZE + TILE_SIZE / 2;
+        this.add.image(x, y, 'tile_empty')
+          .setDisplaySize(TILE_SPRITE_SIZE.width, TILE_SPRITE_SIZE.height);
+        this.plantSprites[row][col] = null;
       }
     }
 
-    this.moneyIcon = this.add.image(TILE_SIZE / 2, TILE_SIZE / 2, 'ui_money');
-    this.moneyIcon.displayWidth = MONEY_ICON_SIZE;
-    this.moneyIcon.displayHeight = MONEY_ICON_SIZE;
-    this.moneyText = this.add.text(TILE_SIZE, TILE_SIZE / 4, '$' + this.money, {
-      font: '16px Arial',
-      color: '#fff'
-    });
+    // c. Sidebar UI
+    // 1. Money Display
+    this.add.image(TILE_SIZE / 2, TILE_SIZE / 2, 'ui_money')
+      .setDisplaySize(UI_MONEY_SIZE.width, UI_MONEY_SIZE.height);
+    this.moneyText = this.add.text(
+      TILE_SIZE + 5, TILE_SIZE / 2,
+      "$" + this.money,
+      { font: "18px Arial", fill: "#ffffff" }
+    );
 
+    // 2. Banner Placeholder
     this.bannerImage = this.add.image(
       SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE) / 2,
-      BANNER_HEIGHT / 2,
+      UI_BANNER_SIZE.height / 2,
       'ui_notenoughmoney'
-    );
-    this.bannerImage.displayWidth = BANNER_WIDTH;
-    this.bannerImage.displayHeight = BANNER_HEIGHT;
-    this.bannerImage.setVisible(false);
+    )
+      .setDisplaySize(UI_BANNER_SIZE.width, UI_BANNER_SIZE.height)
+      .setVisible(false);
 
-    const clearBtn = this.add.image(TILE_SIZE / 2, TILE_SIZE * 2, 'ui_clearcropselection');
-    clearBtn.displayWidth = TILE_SIZE;
-    clearBtn.displayHeight = TILE_SIZE;
-    clearBtn.setInteractive();
-    clearBtn.on('pointerdown', () => this.clearSelection());
+    // 3. “X” Clear-Selection Button
+    let clearBtn = this.add.image(TILE_SIZE / 2, TILE_SIZE * 2, 'ui_clearcropselection')
+                         .setDisplaySize(UI_CLEAR_BUTTON_SIZE.width, UI_CLEAR_BUTTON_SIZE.height)
+                         .setInteractive();
+    clearBtn.on('pointerdown', () => { this.clearSelection(); });
 
-    const cropKeys = ['wheat', 'corn', 'tomato', 'carrot', 'flower', 'glowshroom'];
-    cropKeys.forEach((cropKey, i) => {
-      const x = TILE_SIZE / 2;
-      const y = TILE_SIZE * (3 + i);
-      const icon = this.add.image(x, y, 'crop_' + cropKey);
-      icon.displayWidth = TILE_SIZE;
-      icon.displayHeight = TILE_SIZE;
-      icon.setInteractive();
-      icon.on('pointerdown', () => this.selectCrop(cropKey));
+    // New Game Button
+    let newGameBtn = this.add.image(TILE_SIZE / 2, TILE_SIZE * 9, 'ui_newgame')
+                             .setDisplaySize(UI_NEWGAME_BUTTON_SIZE.width, UI_NEWGAME_BUTTON_SIZE.height)
+                             .setInteractive();
+    newGameBtn.on('pointerdown', () => { this.resetGame(); });
 
-      const statsY = y + TILE_SIZE / 2 + 4;
-      this.add.text(TILE_SIZE, statsY, `Cost: $${CROP_DATA[cropKey].seedCost}`,
-        { font: '14px Arial', color: '#fff' });
-      this.add.text(TILE_SIZE, statsY + 14, `Sell: $${CROP_DATA[cropKey].harvestPrice}`,
-        { font: '14px Arial', color: '#fff' });
-      this.add.text(TILE_SIZE, statsY + 28, `Time: ${CROP_DATA[cropKey].growthTime}s`,
-        { font: '14px Arial', color: '#fff' });
+    // 4. Crop Icons + Stats
+    let index = 0;
+    for (let cropKey of Object.keys(CROP_DATA)) {
+      let xIcon = TILE_SIZE / 2;
+      let yIcon = TILE_SIZE * (3 + index);
+      let icon = this.add.image(xIcon, yIcon, 'crop_' + cropKey)
+                         .setDisplaySize(CROP_SPRITE_SIZE.width, CROP_SPRITE_SIZE.height)
+                         .setInteractive();
+      this.add.text(xIcon + TILE_SIZE/2 + 5, yIcon - 8, "Cost: $" + CROP_DATA[cropKey].seedCost, { font: "14px Arial", fill: "#ffffff" });
+      this.add.text(xIcon + TILE_SIZE/2 + 5, yIcon + 0,  "Sell: $" + CROP_DATA[cropKey].harvestPrice, { font: "14px Arial", fill: "#ffffff" });
+      this.add.text(xIcon + TILE_SIZE/2 + 5, yIcon + 8,  "Time: " + CROP_DATA[cropKey].growthTime + "s", { font: "14px Arial", fill: "#ffffff" });
+      icon.on('pointerdown', () => { this.selectCrop(cropKey); });
+      index++;
+    }
+
+    // e. Planting & Harvesting - pointer listener
+    this.input.on('pointerdown', pointer => {
+      let worldX = pointer.x - SIDEBAR_WIDTH;
+      let worldY = pointer.y;
+      let col = Math.floor(worldX / TILE_SIZE);
+      let row = Math.floor(worldY / TILE_SIZE);
+      if (row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS) return;
+      this.attemptPlantOrHarvest(row, col);
     });
 
-    this.input.on('pointerdown', (pointer) => {
-      const col = Math.floor((pointer.worldX - SIDEBAR_WIDTH) / TILE_SIZE);
-      const row = Math.floor(pointer.worldY / TILE_SIZE);
-      if (row >= 0 && row < GRID_ROWS && col >= 0 && col < GRID_COLS) {
-        this.attemptPlantOrHarvest(row, col);
-      }
-    });
-
+    // j. ESC Key to Return to Title
     this.input.keyboard.on('keydown-ESC', () => {
       this.scene.start('Title');
     });
 
+    // Load saved game state before timers
     this.loadGame();
 
+    // i. Growth Timer
     this.time.addEvent({
       delay: 1000,
       callback: this.updateGrowth,
@@ -160,31 +182,29 @@ class Farm extends Phaser.Scene {
     if (this.ghostSprite) {
       this.ghostSprite.destroy();
     }
-    this.ghostSprite = this.add.image(0, 0, 'crop_' + cropKey);
-    this.ghostSprite.displayWidth = TILE_SIZE;
-    this.ghostSprite.displayHeight = TILE_SIZE;
-    this.ghostSprite.setAlpha(0.5);
-    this.ghostSprite.setDepth(1000);
-
-    if (this.pointerMoveListener) {
-      this.input.off('pointermove', this.pointerMoveListener, this);
-    }
-    this.pointerMoveListener = (pointer) => {
-      const col = Math.floor((pointer.worldX - SIDEBAR_WIDTH) / TILE_SIZE);
-      const row = Math.floor(pointer.worldY / TILE_SIZE);
+    this.ghostSprite = this.add.image(0, 0, 'crop_' + cropKey)
+                              .setDisplaySize(CROP_SPRITE_SIZE.width, CROP_SPRITE_SIZE.height)
+                              .setAlpha(0.5)
+                              .setDepth(1000);
+    this.input.on('pointermove', pointer => {
+      let worldX = pointer.x - SIDEBAR_WIDTH;
+      let worldY = pointer.y;
+      let col = Math.floor(worldX / TILE_SIZE);
+      let row = Math.floor(worldY / TILE_SIZE);
       if (
         row >= 0 && row < GRID_ROWS &&
         col >= 0 && col < GRID_COLS &&
         this.gridState[row][col] === null
       ) {
         this.ghostSprite.setVisible(true);
-        this.ghostSprite.x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE / 2;
-        this.ghostSprite.y = row * TILE_SIZE + TILE_SIZE / 2;
+        this.ghostSprite.setPosition(
+          SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2,
+          row * TILE_SIZE + TILE_SIZE/2
+        );
       } else {
         this.ghostSprite.setVisible(false);
       }
-    };
-    this.input.on('pointermove', this.pointerMoveListener, this);
+    });
   }
 
   clearSelection() {
@@ -193,39 +213,61 @@ class Farm extends Phaser.Scene {
       this.ghostSprite.destroy();
       this.ghostSprite = null;
     }
-    if (this.pointerMoveListener) {
-      this.input.off('pointermove', this.pointerMoveListener, this);
-      this.pointerMoveListener = null;
+    this.input.removeAllListeners('pointermove');
+  }
+
+  resetGame() {
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < GRID_COLS; col++) {
+        if (this.plantSprites[row][col]) {
+          this.plantSprites[row][col].destroy();
+        }
+        this.plantSprites[row][col] = null;
+        this.gridState[row][col] = null;
+      }
     }
+    this.money = INITIAL_MONEY;
+    this.updateMoneyText();
+    localStorage.removeItem('seedSynthesisSave');
+    this.clearSelection();
+    this.bannerImage.setVisible(false);
+    this.bannerVisible = false;
   }
 
   attemptPlantOrHarvest(row, col) {
-    const cell = this.gridState[row][col];
-    const now = Date.now();
+    let cell = this.gridState[row][col];
+    let now = Date.now();
 
-    if (cell && (now - cell.plantedAt) / 1000 >= cell.growthTime) {
-      this.harvestCrop(row, col);
-      return;
+    // If planted & fully grown, harvest
+    if (cell !== null) {
+      let elapsed = (now - cell.plantedAt) / 1000;
+      if (elapsed >= cell.growthTime) {
+        this.harvestCrop(row, col);
+        return;
+      }
     }
 
-    if (!cell && this.selectedCrop) {
-      const cropType = this.selectedCrop;
-      const cost = CROP_DATA[cropType].seedCost;
+    // Otherwise, if empty & crop selected, plant
+    if (cell === null && this.selectedCrop !== null) {
+      let cropType = this.selectedCrop;
+      let cost = CROP_DATA[cropType].seedCost;
       if (this.money < cost) {
         this.showBanner();
         return;
       }
+      // Deduct cost, update money
       this.money -= cost;
       this.updateMoneyText();
-      const x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE / 2;
-      const y = row * TILE_SIZE + TILE_SIZE / 2;
-      const sprite = this.add.image(x, y, 'crop_' + cropType);
-      sprite.displayWidth = TILE_SIZE;
-      sprite.displayHeight = TILE_SIZE;
-      sprite.setScale(0.1);
+
+      // Place new seedling sprite at 10% scale (but force 32×32 first)
+      let x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2;
+      let y = row * TILE_SIZE + TILE_SIZE/2;
+      let sprite = this.add.image(x, y, 'crop_' + cropType)
+                          .setDisplaySize(CROP_SPRITE_SIZE.width, CROP_SPRITE_SIZE.height)
+                          .setScale(0.1);
       this.plantSprites[row][col] = sprite;
       this.gridState[row][col] = {
-        cropType,
+        cropType: cropType,
         plantedAt: now,
         growthTime: CROP_DATA[cropType].growthTime
       };
@@ -234,8 +276,8 @@ class Farm extends Phaser.Scene {
   }
 
   harvestCrop(row, col) {
-    const cell = this.gridState[row][col];
-    const cropType = cell.cropType;
+    let cell = this.gridState[row][col];
+    let cropType = cell.cropType;
     this.plantSprites[row][col].destroy();
     this.plantSprites[row][col] = null;
     this.gridState[row][col] = null;
@@ -248,10 +290,12 @@ class Farm extends Phaser.Scene {
     if (this.bannerVisible) return;
     this.bannerVisible = true;
     this.bannerImage.setVisible(true);
-    this.bannerImage.x = SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE) / 2;
-    this.bannerImage.y = BANNER_HEIGHT / 2;
+    this.bannerImage.setPosition(
+      SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE)/2,
+      UI_BANNER_SIZE.height/2
+    );
     if (this.bannerTimer) {
-      this.bannerTimer.remove(false);
+      this.bannerTimer.remove();
     }
     this.bannerTimer = this.time.delayedCall(BANNER_DURATION, () => {
       this.bannerImage.setVisible(false);
@@ -260,45 +304,46 @@ class Farm extends Phaser.Scene {
   }
 
   updateMoneyText() {
-    this.moneyText.setText('$' + this.money);
+    this.moneyText.setText("$" + this.money);
   }
 
   saveGame() {
-    const data = {
+    const saveData = {
       money: this.money,
-      gridState: this.gridState
+      gridState: this.gridState.map(row =>
+        row.map(cell => cell
+          ? { cropType: cell.cropType, plantedAt: cell.plantedAt, growthTime: cell.growthTime }
+          : null
+        )
+      )
     };
-    localStorage.setItem('seedSynthesisSave', JSON.stringify(data));
+    localStorage.setItem('seedSynthesisSave', JSON.stringify(saveData));
   }
 
   loadGame() {
-    const saved = localStorage.getItem('seedSynthesisSave');
-    if (!saved) {
+    let saved = JSON.parse(localStorage.getItem('seedSynthesisSave'));
+    if (saved) {
+      this.money = saved.money;
       this.updateMoneyText();
-      return;
-    }
-    const data = JSON.parse(saved);
-    this.money = data.money;
-    this.updateMoneyText();
-    for (let row = 0; row < GRID_ROWS; row++) {
-      for (let col = 0; col < GRID_COLS; col++) {
-        const cell = data.gridState[row][col];
-        if (cell) {
-          const elapsed = (Date.now() - cell.plantedAt) / 1000;
-          const progress = Math.min(1, elapsed / cell.growthTime);
-          const scale = 0.1 + 0.9 * progress;
-          const x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE / 2;
-          const y = row * TILE_SIZE + TILE_SIZE / 2;
-          const sprite = this.add.image(x, y, 'crop_' + cell.cropType);
-          sprite.displayWidth = TILE_SIZE;
-          sprite.displayHeight = TILE_SIZE;
-          sprite.setScale(scale);
-          this.plantSprites[row][col] = sprite;
-          this.gridState[row][col] = {
-            cropType: cell.cropType,
-            plantedAt: cell.plantedAt,
-            growthTime: cell.growthTime
-          };
+      for (let row = 0; row < GRID_ROWS; row++) {
+        for (let col = 0; col < GRID_COLS; col++) {
+          let cell = saved.gridState[row][col];
+          if (cell !== null) {
+            let elapsed = (Date.now() - cell.plantedAt) / 1000;
+            let progress = Phaser.Math.Clamp(elapsed / cell.growthTime, 0, 1);
+            let scale = 0.1 + 0.9 * progress;
+            let x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2;
+            let y = row * TILE_SIZE + TILE_SIZE/2;
+            let sprite = this.add.image(x, y, 'crop_' + cell.cropType)
+                                .setDisplaySize(CROP_SPRITE_SIZE.width, CROP_SPRITE_SIZE.height)
+                                .setScale(scale);
+            this.plantSprites[row][col] = sprite;
+            this.gridState[row][col] = {
+              cropType: cell.cropType,
+              plantedAt:   cell.plantedAt,
+              growthTime:  cell.growthTime
+            };
+          }
         }
       }
     }
@@ -307,11 +352,11 @@ class Farm extends Phaser.Scene {
   updateGrowth() {
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS; col++) {
-        const cell = this.gridState[row][col];
-        if (cell) {
-          const elapsed = (Date.now() - cell.plantedAt) / 1000;
-          const progress = Math.min(1, elapsed / cell.growthTime);
-          const scale = 0.1 + 0.9 * progress;
+        let cell = this.gridState[row][col];
+        if (cell !== null) {
+          let elapsed = (Date.now() - cell.plantedAt) / 1000;
+          let progress = Phaser.Math.Clamp(elapsed / cell.growthTime, 0, 1);
+          let scale = 0.1 + 0.9 * progress;
           this.plantSprites[row][col].setScale(scale);
         }
       }
@@ -321,10 +366,14 @@ class Farm extends Phaser.Scene {
 
 const config = {
   type: Phaser.AUTO,
-  width: SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE,
-  height: GRID_ROWS * TILE_SIZE,
-  scene: [Boot, Title, Farm],
-  backgroundColor: '#222'
+  backgroundColor: '#222',
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    parent: null,
+    width: CANVAS_WIDTH,
+    height: CANVAS_HEIGHT
+  },
+  scene: [Boot, Title, Farm]
 };
-
 new Phaser.Game(config);
