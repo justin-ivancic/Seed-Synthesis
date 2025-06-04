@@ -1,10 +1,10 @@
 const CROP_DATA = {
-  carrot:     { seedCost: 5,   harvestPrice: 9,   growthTime: 8   },
-  wheat:      { seedCost: 7,   harvestPrice: 13,  growthTime: 12  },
-  corn:       { seedCost: 10,  harvestPrice: 18,  growthTime: 20  },
-  flower:     { seedCost: 20,  harvestPrice: 36,  growthTime: 60  },
-  tomato:     { seedCost: 40,  harvestPrice: 70,  growthTime: 180 },
-  glowshroom: { seedCost: 100, harvestPrice: 180, growthTime: 600 }
+  carrot:     { seedCost: 5,   harvestPrice: 9,   growthTime: 8,   harvests: 1 },
+  wheat:      { seedCost: 7,   harvestPrice: 13,  growthTime: 12,  harvests: 1 },
+  corn:       { seedCost: 10,  harvestPrice: 18,  growthTime: 20,  harvests: 2 },
+  flower:     { seedCost: 20,  harvestPrice: 36,  growthTime: 60,  harvests: 2 },
+  tomato:     { seedCost: 40,  harvestPrice: 70,  growthTime: 180, harvests: 3 },
+  glowshroom: { seedCost: 100, harvestPrice: 180, growthTime: 600, harvests: 5 }
 };
 
 const CROP_ORDER = ['carrot', 'wheat', 'corn', 'flower', 'tomato', 'glowshroom'];
@@ -49,7 +49,7 @@ const UNLOCK_PRICES   = [
   1000, 5000, 10000, 25000, 100000, 200000, 300000, 1000000
 ];
 const LAND_REVEAL_THRESHOLD = 500;
-const VERSION = "v.0.1.9";
+const VERSION = "v.0.2.0";
 const SAVE_VERSION = 2;
 
 function upgradeSaveData(saved) {
@@ -191,7 +191,6 @@ class Farm extends Phaser.Scene {
       glowshroom: false
     };
     this.cropIcons = {};
-    this.cropTexts = {};
     this.cropUnlockButtons = {};
     this.money         = INITIAL_MONEY;
     this.parcelsRevealed = this.money >= LAND_REVEAL_THRESHOLD;
@@ -249,6 +248,15 @@ class Farm extends Phaser.Scene {
 
     // Tooltip for unlock buttons
     this.unlockTooltip = this.add.text(0, 0, '', {
+      font: '12px Arial',
+      fill: '#ffffff',
+      backgroundColor: '#000000'
+    })
+      .setPadding(4)
+      .setVisible(false)
+      .setDepth(1100);
+
+    this.cropTooltip = this.add.text(0, 0, '', {
       font: '12px Arial',
       fill: '#ffffff',
       backgroundColor: '#000000'
@@ -315,7 +323,7 @@ class Farm extends Phaser.Scene {
                          .setDepth(1000);
     clearBtn.on('pointerdown', () => { this.clearSelection(); });
 
-    // 4. Crop Icons + Stats
+    // 4. Crop Icons
     let index = 0;
     for (let cropKey of CROP_ORDER) {
       let xIcon = this.offsetX + TILE_SIZE / 2 - 8;
@@ -323,27 +331,22 @@ class Farm extends Phaser.Scene {
       let icon = this.add.image(xIcon, yIcon, 'crop_' + cropKey)
                          .setDisplaySize(CROP_SPRITE_SIZE.width, CROP_SPRITE_SIZE.height)
                          .setDepth(1000);
-      let costText = this.add.text(
-        xIcon + TILE_SIZE/2 + 5,
-        yIcon - CROP_TEXT_SIZE,
-        "Cost: $" + CROP_DATA[cropKey].seedCost,
-        { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" }
-      ).setDepth(1000);
-      let sellText = this.add.text(
-        xIcon + TILE_SIZE/2 + 5,
-        yIcon,
-        "Sell: $" + CROP_DATA[cropKey].harvestPrice,
-        { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" }
-      ).setDepth(1000);
-      let timeText = this.add.text(
-        xIcon + TILE_SIZE/2 + 5,
-        yIcon + CROP_TEXT_SIZE,
-        "Time: " + CROP_DATA[cropKey].growthTime + "s",
-        { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" }
-      ).setDepth(1000);
       icon.on('pointerdown', () => { this.selectCrop(cropKey); });
+      icon.on('pointerover', pointer => {
+        const text =
+          `Cost: $${CROP_DATA[cropKey].seedCost}\n` +
+          `Sell: $${CROP_DATA[cropKey].harvestPrice}\n` +
+          `Time: ${CROP_DATA[cropKey].growthTime}s`;
+        this.cropTooltip.setText(text)
+          .setPosition(pointer.x + 10, pointer.y + 10)
+          .setVisible(true);
+        this.input.on('pointermove', this.moveCropTooltip, this);
+      });
+      icon.on('pointerout', () => {
+        this.cropTooltip.setVisible(false);
+        this.input.off('pointermove', this.moveCropTooltip, this);
+      });
       this.cropIcons[cropKey] = icon;
-      this.cropTexts[cropKey] = [costText, sellText, timeText];
       index++;
     }
 
@@ -445,6 +448,10 @@ class Farm extends Phaser.Scene {
     this.input.removeAllListeners('pointermove');
   }
 
+  moveCropTooltip(pointer) {
+    this.cropTooltip.setPosition(pointer.x + 10, pointer.y + 10);
+  }
+
   getParcelIndex(row, col) {
     const r = Math.floor(row / PARCEL_SIZE);
     const c = Math.floor(col / PARCEL_SIZE);
@@ -520,7 +527,8 @@ class Farm extends Phaser.Scene {
       this.gridState[row][col] = {
         cropType: cropType,
         plantedAt: now,
-        growthTime: CROP_DATA[cropType].growthTime
+        growthTime: CROP_DATA[cropType].growthTime,
+        harvestsLeft: CROP_DATA[cropType].harvests
       };
       this.saveGame();
     }
@@ -556,10 +564,22 @@ class Farm extends Phaser.Scene {
     }
 
     this.plantSprites[row][col].destroy();
-    this.plantSprites[row][col] = null;
-    this.gridState[row][col] = null;
     this.money += CROP_DATA[cropType].harvestPrice;
     this.updateMoneyText();
+
+    cell.harvestsLeft -= 1;
+    if (cell.harvestsLeft > 0) {
+      cell.plantedAt = Date.now();
+      const newSprite = this.add.image(x, y, 'crop_' + cropType)
+        .setDisplaySize(
+          CROP_SPRITE_SIZE.width * 0.1,
+          CROP_SPRITE_SIZE.height * 0.1
+        );
+      this.plantSprites[row][col] = newSprite;
+    } else {
+      this.plantSprites[row][col] = null;
+      this.gridState[row][col] = null;
+    }
     this.saveGame();
   }
 
@@ -706,7 +726,7 @@ class Farm extends Phaser.Scene {
       parcelsRevealed: this.parcelsRevealed,
       gridState: this.gridState.map(row =>
         row.map(cell => cell
-          ? { cropType: cell.cropType, plantedAt: cell.plantedAt, growthTime: cell.growthTime }
+          ? { cropType: cell.cropType, plantedAt: cell.plantedAt, growthTime: cell.growthTime, harvestsLeft: cell.harvestsLeft }
           : null
         )
       )
@@ -760,7 +780,8 @@ class Farm extends Phaser.Scene {
             this.gridState[row][col] = {
               cropType: cell.cropType,
               plantedAt:   cell.plantedAt,
-              growthTime:  cell.growthTime
+              growthTime:  cell.growthTime,
+              harvestsLeft: cell.harvestsLeft !== undefined ? cell.harvestsLeft : CROP_DATA[cell.cropType].harvests
             };
           }
         }
@@ -924,12 +945,10 @@ class Farm extends Phaser.Scene {
     for (let cropKey of CROP_ORDER) {
       const unlocked = this.cropsUnlocked[cropKey];
       const icon = this.cropIcons[cropKey];
-      const texts = this.cropTexts[cropKey];
 
       if (unlocked) {
         icon.clearTint();
         icon.setInteractive();
-        texts.forEach(t => t.setTint(0xffffff));
         if (this.cropUnlockButtons[cropKey]) {
           this.cropUnlockButtons[cropKey].destroy();
           this.cropUnlockButtons[cropKey] = null;
@@ -937,7 +956,6 @@ class Farm extends Phaser.Scene {
       } else {
         icon.setTint(0x555555);
         icon.disableInteractive();
-        texts.forEach(t => t.setTint(0x555555));
         if (!this.cropUnlockButtons[cropKey]) {
           const btn = this.add.image(icon.x, icon.y, 'ui_unlock')
             .setDisplaySize(UI_UNLOCK_BUTTON_SIZE.width * 2, UI_UNLOCK_BUTTON_SIZE.height * 2)
