@@ -10,7 +10,7 @@ const CROP_DATA = {
 const CROP_ORDER = ['carrot', 'wheat', 'corn', 'flower', 'tomato', 'glowshroom'];
 
 const CROP_UNLOCK_PRICES = {
-  wheat: 1000,
+  wheat: 500,
   corn: 1500,
   flower: 2000,
   tomato: 2500,
@@ -48,7 +48,7 @@ const PARCEL_SIZE     = 5;
 const UNLOCK_PRICES   = [
   1000, 5000, 10000, 25000, 100000, 200000, 300000, 1000000
 ];
-const VERSION = "v.0.1.4";
+const VERSION = "v.0.1.5";
 
 // Intro timing constants (in milliseconds)
 const INTRO_FADE_DURATION = 500;
@@ -173,11 +173,15 @@ class Farm extends Phaser.Scene {
     this.farmGirlShown = localStorage.getItem('farmGirlShown') === 'true';
     this.farmGirlTimer = null;
 
+    // compute offsets to roughly center the grid and sidebars
+    this.offsetX = Math.max(0, Math.floor((CANVAS_WIDTH - (SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE + RIGHT_SIDEBAR_WIDTH)) / 2));
+    this.offsetY = Math.max(0, Math.floor((CANVAS_HEIGHT - GRID_ROWS * TILE_SIZE) / 2));
+
     // b. Draw the 15×15 Grid Background and lock overlays
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS; col++) {
-        let x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE / 2;
-        let y = row * TILE_SIZE + TILE_SIZE / 2;
+        let x = this.offsetX + SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE / 2;
+        let y = this.offsetY + row * TILE_SIZE + TILE_SIZE / 2;
         const tile = this.add.image(x, y, 'tile_empty')
           .setDisplaySize(TILE_SPRITE_SIZE.width, TILE_SPRITE_SIZE.height);
         this.tileSprites[row][col] = tile;
@@ -194,12 +198,12 @@ class Farm extends Phaser.Scene {
 
     // c. Sidebar UI
     // 1. Money Display
-    let moneyX = SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE) / 2 - TILE_SIZE;
-  this.add.image(moneyX, TILE_SIZE / 2, 'ui_money')
+    let moneyX = this.offsetX + SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE) / 2 - TILE_SIZE;
+  this.add.image(moneyX, this.offsetY + TILE_SIZE / 2, 'ui_money')
     .setDisplaySize(UI_MONEY_SIZE.width, UI_MONEY_SIZE.height)
     .setDepth(1000);
   this.moneyText = this.add.text(
-    moneyX + TILE_SIZE / 2 + 4, TILE_SIZE / 2,
+    moneyX + TILE_SIZE / 2 + 4, this.offsetY + TILE_SIZE / 2,
     "$" + this.money,
     { font: "18px Arial", fill: "#ffffff" }
   );
@@ -229,8 +233,8 @@ class Farm extends Phaser.Scene {
 
     // 2. Banner Placeholder
     this.bannerImage = this.add.image(
-      SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE) / 2,
-      UI_BANNER_SIZE.height / 2,
+      this.offsetX + SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE) / 2,
+      this.offsetY + UI_BANNER_SIZE.height / 2,
       'ui_notenoughmoney'
     )
       .setDisplaySize(UI_BANNER_SIZE.width, UI_BANNER_SIZE.height)
@@ -267,7 +271,7 @@ class Farm extends Phaser.Scene {
       .setDepth(1500);
 
     // 3. “X” Clear-Selection Button
-    let clearBtn = this.add.image(TILE_SIZE / 2, TILE_SIZE * 2, 'ui_clearcropselection')
+    let clearBtn = this.add.image(this.offsetX + TILE_SIZE / 2, this.offsetY + TILE_SIZE * 2, 'ui_clearcropselection')
                          .setDisplaySize(UI_CLEAR_BUTTON_SIZE.width, UI_CLEAR_BUTTON_SIZE.height)
                          .setInteractive()
                          .setDepth(1000);
@@ -276,8 +280,8 @@ class Farm extends Phaser.Scene {
     // 4. Crop Icons + Stats
     let index = 0;
     for (let cropKey of CROP_ORDER) {
-      let xIcon = TILE_SIZE / 2 - 8;
-      let yIcon = TILE_SIZE * 3 + index * CROP_ICON_SPACING;
+      let xIcon = this.offsetX + TILE_SIZE / 2 - 8;
+      let yIcon = this.offsetY + TILE_SIZE * 3 + index * CROP_ICON_SPACING;
       let icon = this.add.image(xIcon, yIcon, 'crop_' + cropKey)
                          .setDisplaySize(CROP_SPRITE_SIZE.width, CROP_SPRITE_SIZE.height)
                          .setDepth(1000);
@@ -309,8 +313,8 @@ class Farm extends Phaser.Scene {
 
     // 5. New Game Button
     let newGameBtn = this.add.image(
-      SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE + RIGHT_SIDEBAR_WIDTH / 2,
-      TILE_SIZE * 9,
+      this.offsetX + SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE + RIGHT_SIDEBAR_WIDTH / 2,
+      this.offsetY + TILE_SIZE * 9,
       'ui_newgame'
     )
       .setDisplaySize(UI_NEWGAME_BUTTON_SIZE.width * 2, UI_NEWGAME_BUTTON_SIZE.height * 2)
@@ -320,8 +324,8 @@ class Farm extends Phaser.Scene {
 
     // e. Planting & Harvesting - pointer listener
     this.input.on('pointerdown', pointer => {
-      let worldX = pointer.x - SIDEBAR_WIDTH;
-      let worldY = pointer.y;
+      let worldX = pointer.x - this.offsetX - SIDEBAR_WIDTH;
+      let worldY = pointer.y - this.offsetY;
       let col = Math.floor(worldX / TILE_SIZE);
       let row = Math.floor(worldY / TILE_SIZE);
       if (row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS) return;
@@ -369,8 +373,8 @@ class Farm extends Phaser.Scene {
                               .setAlpha(0.5)
                               .setDepth(1000);
     this.input.on('pointermove', pointer => {
-      let worldX = pointer.x - SIDEBAR_WIDTH;
-      let worldY = pointer.y;
+      let worldX = pointer.x - this.offsetX - SIDEBAR_WIDTH;
+      let worldY = pointer.y - this.offsetY;
       let col = Math.floor(worldX / TILE_SIZE);
       let row = Math.floor(worldY / TILE_SIZE);
       if (
@@ -380,8 +384,8 @@ class Farm extends Phaser.Scene {
       ) {
         this.ghostSprite.setVisible(true);
         this.ghostSprite.setPosition(
-          SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2,
-          row * TILE_SIZE + TILE_SIZE/2
+          this.offsetX + SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2,
+          this.offsetY + row * TILE_SIZE + TILE_SIZE/2
         );
       } else {
         this.ghostSprite.setVisible(false);
@@ -410,8 +414,8 @@ class Farm extends Phaser.Scene {
     const row = r * PARCEL_SIZE + 2;
     const col = c * PARCEL_SIZE + 2;
     return {
-      x: SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE / 2,
-      y: row * TILE_SIZE + TILE_SIZE / 2
+      x: this.offsetX + SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE / 2,
+      y: this.offsetY + row * TILE_SIZE + TILE_SIZE / 2
     };
   }
 
@@ -446,9 +450,24 @@ class Farm extends Phaser.Scene {
       this.money -= cost;
       this.updateMoneyText();
 
+      // Animate planting by scaling a temporary ghost into the ground
+      let x = this.offsetX + SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2;
+      let y = this.offsetY + row * TILE_SIZE + TILE_SIZE/2;
+      const plantGhost = this.add.image(x, y, 'crop_' + cropType)
+        .setDisplaySize(CROP_SPRITE_SIZE.width, CROP_SPRITE_SIZE.height)
+        .setAlpha(0.5)
+        .setDepth(999);
+      this.tweens.add({
+        targets: plantGhost,
+        scaleX: 0,
+        scaleY: 0,
+        duration: 150,
+        onComplete: () => plantGhost.destroy()
+      });
+
       // Place new seedling sprite at 10% scale (but force 32×32 first)
-      let x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2;
-      let y = row * TILE_SIZE + TILE_SIZE/2;
+      x = this.offsetX + SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2;
+      y = this.offsetY + row * TILE_SIZE + TILE_SIZE/2;
       let sprite = this.add.image(x, y, 'crop_' + cropType)
                           .setDisplaySize(
                             CROP_SPRITE_SIZE.width * 0.1,
@@ -471,6 +490,28 @@ class Farm extends Phaser.Scene {
       this.plantSprites[row][col].bounceTween.stop();
       this.plantSprites[row][col].bounceTween = null;
     }
+    const x = this.offsetX + SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2;
+    const y = this.offsetY + row * TILE_SIZE + TILE_SIZE/2;
+
+    // Spawn small crop sprites that fly up and fade out
+    for (let i = 0; i < 5; i++) {
+      const piece = this.add.image(x, y, 'crop_' + cropType)
+        .setDisplaySize(10, 10)
+        .setDepth(1200);
+      const angle = Phaser.Math.DegToRad(Phaser.Math.Between(-120, -60));
+      const dist = Phaser.Math.Between(10, 20);
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist;
+      this.tweens.add({
+        targets: piece,
+        x: x + dx,
+        y: y + dy,
+        alpha: 0,
+        duration: 400,
+        onComplete: () => piece.destroy()
+      });
+    }
+
     this.plantSprites[row][col].destroy();
     this.plantSprites[row][col] = null;
     this.gridState[row][col] = null;
@@ -484,8 +525,8 @@ class Farm extends Phaser.Scene {
     this.bannerVisible = true;
     this.bannerImage.setVisible(true);
     this.bannerImage.setPosition(
-      SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE)/2,
-      UI_BANNER_SIZE.height / 2
+      this.offsetX + SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE)/2,
+      this.offsetY + UI_BANNER_SIZE.height / 2
     );
     if (this.bannerTimer) {
       this.bannerTimer.remove();
@@ -521,8 +562,8 @@ class Farm extends Phaser.Scene {
       .setDepth(1900);
     this.tweens.add({ targets: this.introOverlay, alpha: 0.6, duration: INTRO_FADE_DURATION });
 
-    const rightX = CANVAS_WIDTH - FARM_GIRL_SIZE.width / 2 - 10;
-    const leftX  = FARM_GIRL_SIZE.width / 2 + 10;
+    const rightX = CANVAS_WIDTH * 0.65;
+    const leftX  = CANVAS_WIDTH * 0.35;
     const yPos   = CANVAS_HEIGHT / 2 - FARM_GIRL_SIZE.height / 4;
 
     this.introGirl = this.add.image(rightX, yPos, 'char_farmgirl_dissatisfied')
@@ -636,8 +677,8 @@ class Farm extends Phaser.Scene {
           if (cell !== null) {
             let elapsed = (Date.now() - cell.plantedAt) / 1000;
             let progress = Phaser.Math.Clamp(elapsed / cell.growthTime, 0, 1);
-            let x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2;
-            let y = row * TILE_SIZE + TILE_SIZE/2;
+            let x = this.offsetX + SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2;
+            let y = this.offsetY + row * TILE_SIZE + TILE_SIZE/2;
             let sprite = this.add.image(x, y, 'crop_' + cell.cropType);
             if (progress >= 1) {
               sprite.setDisplaySize(
@@ -795,7 +836,7 @@ class Farm extends Phaser.Scene {
   showUnlockConfirm(index) {
     const cost = UNLOCK_PRICES[this.unlockedCount - 1];
     const center = this.getParcelCenter(index);
-    const bannerY = TILE_SIZE * 1.5;
+    const bannerY = this.offsetY + TILE_SIZE * 1.5;
     this.confirmText.setText(`Purchase Parcel ${index} for $${cost}?`);
     this.confirmContainer.setPosition(center.x, bannerY);
     this.confirmContainer.setVisible(true);
@@ -863,7 +904,7 @@ class Farm extends Phaser.Scene {
 
   showCropUnlockConfirm(cropKey) {
     const cost = CROP_UNLOCK_PRICES[cropKey];
-    const bannerY = TILE_SIZE * 1.5;
+    const bannerY = this.offsetY + TILE_SIZE * 1.5;
     this.confirmText.setText(`Unlock ${cropKey.charAt(0).toUpperCase() + cropKey.slice(1)} for $${cost}?`);
     this.confirmContainer.setPosition(CANVAS_WIDTH / 2, bannerY);
     this.confirmContainer.setVisible(true);
