@@ -39,8 +39,8 @@ const UI_UNLOCK_BUTTON_SIZE = { width: 32, height: 32 }; // unlock button base s
 const UI_PLAY_BUTTON_SIZE    = { width: 64, height: 64 }; // play button enlarged 2x
 const FARM_GIRL_SIZE         = { width: 160, height: 160 }; // congratulatory sprite size
 
-const CANVAS_WIDTH           = SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE + RIGHT_SIDEBAR_WIDTH;
-const CANVAS_HEIGHT          = GRID_ROWS * TILE_SIZE;
+let CANVAS_WIDTH            = window.innerWidth;
+let CANVAS_HEIGHT           = window.innerHeight;
 
 const INITIAL_MONEY   = 100;
 const BANNER_DURATION = 2000; // milliseconds
@@ -48,7 +48,7 @@ const PARCEL_SIZE     = 5;
 const UNLOCK_PRICES   = [
   1000, 5000, 10000, 25000, 100000, 200000, 300000, 1000000
 ];
-const VERSION = "v.0.1.3";
+const VERSION = "v.0.1.4";
 
 // Intro timing constants (in milliseconds)
 const INTRO_FADE_DURATION = 500;
@@ -930,11 +930,16 @@ const config = {
   type: Phaser.AUTO,
   backgroundColor: '#222',
   scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    mode: Phaser.Scale.RESIZE,
     width: CANVAS_WIDTH,
     height: CANVAS_HEIGHT
   },
   scene: [Boot, Title, Farm]
 };
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+window.addEventListener('resize', () => {
+  CANVAS_WIDTH = window.innerWidth;
+  CANVAS_HEIGHT = window.innerHeight;
+  game.scale.resize(CANVAS_WIDTH, CANVAS_HEIGHT);
+});
