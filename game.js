@@ -13,7 +13,11 @@ const CROP_DATA = {
 const TILE_SIZE              = 32;           // base size for the grid
 const GRID_ROWS              = 15;
 const GRID_COLS              = 15;
-const SIDEBAR_WIDTH          = TILE_SIZE * 2; // two columns wide
+const SIDEBAR_WIDTH          = TILE_SIZE * 2; // width of crop list sidebar
+const RIGHT_SIDEBAR_WIDTH    = TILE_SIZE * 2; // space on right for buttons
+
+const CROP_ICON_SPACING      = TILE_SIZE * 1.5; // vertical spacing for crop icons
+const CROP_TEXT_SIZE         = 12;
 
 const TILE_SPRITE_SIZE       = { width: 32, height: 32 };
 const CROP_SPRITE_SIZE       = { width: 32, height: 32 };
@@ -23,7 +27,7 @@ const UI_CLEAR_BUTTON_SIZE   = { width: 32, height: 32 };
 const UI_NEWGAME_BUTTON_SIZE = { width: 32, height: 32 };
 const UI_PLAY_BUTTON_SIZE    = { width: 64, height: 64 }; // play button enlarged 2x
 
-const CANVAS_WIDTH           = SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE;
+const CANVAS_WIDTH           = SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE + RIGHT_SIDEBAR_WIDTH;
 const CANVAS_HEIGHT          = GRID_ROWS * TILE_SIZE;
 
 const INITIAL_MONEY   = 100;
@@ -111,10 +115,11 @@ class Farm extends Phaser.Scene {
 
     // c. Sidebar UI
     // 1. Money Display
-    this.add.image(TILE_SIZE / 2, TILE_SIZE / 2, 'ui_money')
+    let moneyX = SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE) / 2 - TILE_SIZE;
+    this.add.image(moneyX, TILE_SIZE / 2, 'ui_money')
       .setDisplaySize(UI_MONEY_SIZE.width, UI_MONEY_SIZE.height);
     this.moneyText = this.add.text(
-      TILE_SIZE + 5, TILE_SIZE / 2,
+      moneyX + TILE_SIZE / 2 + 4, TILE_SIZE / 2,
       "$" + this.money,
       { font: "18px Arial", fill: "#ffffff" }
     );
@@ -137,25 +142,25 @@ class Farm extends Phaser.Scene {
     // 4. Crop Icons + Stats
     let index = 0;
     for (let cropKey of Object.keys(CROP_DATA)) {
-      let xIcon = TILE_SIZE / 2;
-      let yIcon = TILE_SIZE * (3 + index);
+      let xIcon = TILE_SIZE / 2 - 8;
+      let yIcon = TILE_SIZE * 3 + index * CROP_ICON_SPACING;
       let icon = this.add.image(xIcon, yIcon, 'crop_' + cropKey)
                          .setDisplaySize(CROP_SPRITE_SIZE.width, CROP_SPRITE_SIZE.height)
                          .setInteractive();
-      this.add.text(xIcon + TILE_SIZE/2 + 5, yIcon - 8, "Cost: $" + CROP_DATA[cropKey].seedCost, { font: "14px Arial", fill: "#ffffff" });
-      this.add.text(xIcon + TILE_SIZE/2 + 5, yIcon + 0,  "Sell: $" + CROP_DATA[cropKey].harvestPrice, { font: "14px Arial", fill: "#ffffff" });
-      this.add.text(xIcon + TILE_SIZE/2 + 5, yIcon + 8,  "Time: " + CROP_DATA[cropKey].growthTime + "s", { font: "14px Arial", fill: "#ffffff" });
+      this.add.text(xIcon + TILE_SIZE/2 + 5, yIcon - CROP_TEXT_SIZE, "Cost: $" + CROP_DATA[cropKey].seedCost, { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" });
+      this.add.text(xIcon + TILE_SIZE/2 + 5, yIcon,  "Sell: $" + CROP_DATA[cropKey].harvestPrice, { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" });
+      this.add.text(xIcon + TILE_SIZE/2 + 5, yIcon + CROP_TEXT_SIZE,  "Time: " + CROP_DATA[cropKey].growthTime + "s", { font: `${CROP_TEXT_SIZE}px Arial`, fill: "#ffffff" });
       icon.on('pointerdown', () => { this.selectCrop(cropKey); });
       index++;
     }
 
     // 5. New Game Button
     let newGameBtn = this.add.image(
-      TILE_SIZE / 2,
+      SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE + RIGHT_SIDEBAR_WIDTH / 2,
       TILE_SIZE * 9,
       'ui_newgame'
     )
-      .setDisplaySize(UI_NEWGAME_BUTTON_SIZE.width, UI_NEWGAME_BUTTON_SIZE.height)
+      .setDisplaySize(UI_NEWGAME_BUTTON_SIZE.width * 2, UI_NEWGAME_BUTTON_SIZE.height * 2)
       .setInteractive();
     newGameBtn.on('pointerdown', () => { this.resetGame(); });
 
@@ -390,7 +395,7 @@ const config = {
   type: Phaser.AUTO,
   backgroundColor: '#222',
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.NONE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: CANVAS_WIDTH,
     height: CANVAS_HEIGHT
