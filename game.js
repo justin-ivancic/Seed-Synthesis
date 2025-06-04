@@ -46,6 +46,7 @@ class Boot extends Phaser.Scene {
     this.load.image('crop_carrot',     'assets/default/crop_carrot.png');
     this.load.image('crop_flower',     'assets/default/crop_flower.png');
     this.load.image('crop_glowshroom', 'assets/default/crop_glowshroom.png');
+    this.load.image('background', 'assets/default/background.png');
     this.load.image('banner_seedsynthesis', 'assets/default/banner_seedsynthesis.png');
     this.load.image('ui_playbutton',        'assets/default/ui_playbutton.png');
     this.load.image('ui_notenoughmoney',    'assets/default/ui_notenoughmoney.png');
@@ -68,15 +69,22 @@ class Title extends Phaser.Scene {
   }
 
   create() {
+    const bg = this.add.image(
+      CANVAS_WIDTH / 2,
+      CANVAS_HEIGHT / 2,
+      'background'
+    ).setDisplaySize(CANVAS_WIDTH, CANVAS_HEIGHT);
+    bg.setDepth(-1);
+
     this.add.image(
       CANVAS_WIDTH / 2,
-      UI_BANNER_SIZE.height / 2,
+      CANVAS_HEIGHT / 2 - UI_PLAY_BUTTON_SIZE.height,
       'banner_seedsynthesis'
     ).setDisplaySize(UI_BANNER_SIZE.width, UI_BANNER_SIZE.height);
 
     const playButton = this.add.image(
       CANVAS_WIDTH / 2,
-      UI_BANNER_SIZE.height + TILE_SIZE,
+      CANVAS_HEIGHT / 2 + UI_PLAY_BUTTON_SIZE.height,
       'ui_playbutton'
     )
       .setDisplaySize(UI_PLAY_BUTTON_SIZE.width, UI_PLAY_BUTTON_SIZE.height)
@@ -395,7 +403,7 @@ const config = {
   type: Phaser.AUTO,
   backgroundColor: '#222',
   scale: {
-    mode: Phaser.Scale.NONE,
+    mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: CANVAS_WIDTH,
     height: CANVAS_HEIGHT
