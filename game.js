@@ -1,10 +1,10 @@
 const CROP_DATA = {
   wheat:      { seedCost: 5,  harvestPrice: 12, growthTime: 9  },
   corn:       { seedCost: 8,  harvestPrice: 18, growthTime: 12 },
-  tomato:     { seedCost: 10, harvestPrice: 22, growthTime: 15 },
+  tomato:     { seedCost: 10, harvestPrice: 22, growthTime: 30 },
   carrot:     { seedCost: 6,  harvestPrice: 14, growthTime: 8  },
-  flower:     { seedCost: 4,  harvestPrice: 10, growthTime: 6  },
-  glowshroom: { seedCost: 12, harvestPrice: 30, growthTime: 18 }
+  flower:     { seedCost: 4,  harvestPrice: 10, growthTime: 60 },
+  glowshroom: { seedCost: 12, harvestPrice: 30, growthTime: 120 }
 };
 
 // ---------------------------------------------------------------------------
@@ -32,7 +32,7 @@ const CANVAS_HEIGHT          = GRID_ROWS * TILE_SIZE;
 
 const INITIAL_MONEY   = 100;
 const BANNER_DURATION = 2000; // milliseconds
-const VERSION = "v.0.0.9";
+const VERSION = "v.0.1.0";
 
 class Boot extends Phaser.Scene {
   constructor() {
@@ -81,7 +81,10 @@ class Title extends Phaser.Scene {
       CANVAS_WIDTH / 2,
       CANVAS_HEIGHT / 2 - UI_PLAY_BUTTON_SIZE.height,
       'banner_seedsynthesis'
-    ).setDisplaySize(UI_BANNER_SIZE.width, UI_BANNER_SIZE.height);
+    ).setDisplaySize(
+      UI_BANNER_SIZE.width * 3,
+      UI_BANNER_SIZE.height * 3
+    );
 
     const playButton = this.add.image(
       CANVAS_WIDTH / 2,
@@ -100,7 +103,9 @@ class Title extends Phaser.Scene {
       CANVAS_HEIGHT - 4,
       VERSION,
       { font: '12px Arial', fill: '#ffffff' }
-    ).setOrigin(1,1);
+    )
+      .setOrigin(1,1)
+      .setDepth(2000);
   }
 }
 
@@ -202,7 +207,9 @@ class Farm extends Phaser.Scene {
       CANVAS_HEIGHT - 4,
       VERSION,
       { font: '12px Arial', fill: '#ffffff' }
-    ).setOrigin(1,1);
+    )
+      .setOrigin(1,1)
+      .setDepth(2000);
 
     // Load saved game state before timers
     this.loadGame();
