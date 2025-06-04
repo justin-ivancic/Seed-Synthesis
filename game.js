@@ -18,10 +18,10 @@ const SIDEBAR_WIDTH          = TILE_SIZE * 2; // two columns wide
 const TILE_SPRITE_SIZE       = { width: 32, height: 32 };
 const CROP_SPRITE_SIZE       = { width: 32, height: 32 };
 const UI_MONEY_SIZE          = { width: 24, height: 24 };
-const UI_BANNER_SIZE         = { width: 32, height: 32 };  // banner icon
+const UI_BANNER_SIZE         = { width: 96, height: 96 };  // banner icon enlarged 3x
 const UI_CLEAR_BUTTON_SIZE   = { width: 32, height: 32 };
 const UI_NEWGAME_BUTTON_SIZE = { width: 32, height: 32 };
-const UI_PLAY_BUTTON_SIZE    = { width: 32, height: 32 };
+const UI_PLAY_BUTTON_SIZE    = { width: 64, height: 64 }; // play button enlarged 2x
 
 const CANVAS_WIDTH           = SIDEBAR_WIDTH + GRID_COLS * TILE_SIZE;
 const CANVAS_HEIGHT          = GRID_ROWS * TILE_SIZE;
@@ -254,8 +254,10 @@ class Farm extends Phaser.Scene {
       let x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2;
       let y = row * TILE_SIZE + TILE_SIZE/2;
       let sprite = this.add.image(x, y, 'crop_' + cropType)
-                          .setDisplaySize(CROP_SPRITE_SIZE.width, CROP_SPRITE_SIZE.height)
-                          .setScale(0.1);
+                          .setDisplaySize(
+                            CROP_SPRITE_SIZE.width * 0.1,
+                            CROP_SPRITE_SIZE.height * 0.1
+                          );
       this.plantSprites[row][col] = sprite;
       this.gridState[row][col] = {
         cropType: cropType,
@@ -326,8 +328,10 @@ class Farm extends Phaser.Scene {
             let x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2;
             let y = row * TILE_SIZE + TILE_SIZE/2;
             let sprite = this.add.image(x, y, 'crop_' + cell.cropType)
-                                .setDisplaySize(CROP_SPRITE_SIZE.width, CROP_SPRITE_SIZE.height)
-                                .setScale(scale);
+                                .setDisplaySize(
+                                  CROP_SPRITE_SIZE.width * scale,
+                                  CROP_SPRITE_SIZE.height * scale
+                                );
             this.plantSprites[row][col] = sprite;
             this.gridState[row][col] = {
               cropType: cell.cropType,
@@ -372,7 +376,10 @@ class Farm extends Phaser.Scene {
           let elapsed = (Date.now() - cell.plantedAt) / 1000;
           let progress = Phaser.Math.Clamp(elapsed / cell.growthTime, 0, 1);
           let scale = 0.1 + 0.9 * progress;
-          this.plantSprites[row][col].setScale(scale);
+          this.plantSprites[row][col].setDisplaySize(
+            CROP_SPRITE_SIZE.width * scale,
+            CROP_SPRITE_SIZE.height * scale
+          );
         }
       }
     }
