@@ -48,7 +48,24 @@ const PARCEL_SIZE     = 5;
 const UNLOCK_PRICES   = [
   1000, 5000, 10000, 25000, 100000, 200000, 300000, 1000000
 ];
-const VERSION = "v.0.1.7";
+const LAND_REVEAL_THRESHOLD = 500;
+const VERSION = "v.0.1.9";
+const SAVE_VERSION = 2;
+
+function upgradeSaveData(saved) {
+  if (!saved) return null;
+  if (saved.saveVersion === undefined) {
+    saved.saveVersion = 1;
+  }
+  // Upgrade from v1 -> v2
+  if (saved.saveVersion < 2) {
+    if (saved.parcelsRevealed === undefined) {
+      saved.parcelsRevealed = saved.money >= LAND_REVEAL_THRESHOLD;
+    }
+    saved.saveVersion = 2;
+  }
+  return saved;
+}
 
 // Margin around the edges of the canvas where no game objects are placed
 const BUFFER_MARGIN = 32;
@@ -127,7 +144,9 @@ class Title extends Phaser.Scene {
       .setDisplaySize(UI_PLAY_BUTTON_SIZE.width, UI_PLAY_BUTTON_SIZE.height)
       .setInteractive();
     playButton.on('pointerdown', () => {
-      this.scene.start('Farm', { showIntro: true });
+      const hasSave  = !!localStorage.getItem('seedSynthesisSave');
+      const introSeen = localStorage.getItem('introShown') === 'true';
+      this.scene.start('Farm', { showIntro: !hasSave && !introSeen });
     });
 
     // Version display
@@ -161,6 +180,7 @@ class Farm extends Phaser.Scene {
     this.unlockButtons = Array(9).fill(null);
     this.parcelsUnlocked = Array(9).fill(false);
     this.parcelsUnlocked[4] = true;
+    this.parcelsRevealed = this.money >= LAND_REVEAL_THRESHOLD;
     this.unlockedCount = 1;
     this.cropsUnlocked = {
       carrot: true,
@@ -174,6 +194,7 @@ class Farm extends Phaser.Scene {
     this.cropTexts = {};
     this.cropUnlockButtons = {};
     this.money         = INITIAL_MONEY;
+    this.parcelsRevealed = this.money >= LAND_REVEAL_THRESHOLD;
     this.selectedCrop  = null;
     this.ghostSprite   = null;
     this.bannerVisible = false;
@@ -572,6 +593,7 @@ class Farm extends Phaser.Scene {
   }
 
   startIntroSequence() {
+    localStorage.setItem('introShown', 'true');
     this.introOverlay = this.add.rectangle(
       CANVAS_WIDTH / 2,
       CANVAS_HEIGHT / 2,
@@ -662,6 +684,11 @@ class Farm extends Phaser.Scene {
 
   updateMoneyText() {
     this.moneyText.setText("$" + this.money);
+    if (!this.parcelsRevealed && this.money >= LAND_REVEAL_THRESHOLD) {
+      this.parcelsRevealed = true;
+      this.updateParcelVisuals();
+      this.saveGame();
+    }
     if (!this.farmGirlShown && this.money >= 1000) {
       this.farmGirlShown = true;
       localStorage.setItem('farmGirlShown', 'true');
@@ -671,10 +698,12 @@ class Farm extends Phaser.Scene {
 
   saveGame() {
     const saveData = {
+      saveVersion: SAVE_VERSION,
       money: this.money,
       parcelsUnlocked: this.parcelsUnlocked,
       unlockedCount: this.unlockedCount,
       cropsUnlocked: this.cropsUnlocked,
+      parcelsRevealed: this.parcelsRevealed,
       gridState: this.gridState.map(row =>
         row.map(cell => cell
           ? { cropType: cell.cropType, plantedAt: cell.plantedAt, growthTime: cell.growthTime }
@@ -687,11 +716,13 @@ class Farm extends Phaser.Scene {
 
   loadGame() {
     let saved = JSON.parse(localStorage.getItem('seedSynthesisSave'));
+    saved = upgradeSaveData(saved);
     if (saved) {
       this.money = saved.money;
       this.parcelsUnlocked = saved.parcelsUnlocked || this.parcelsUnlocked;
       this.unlockedCount = saved.unlockedCount || this.unlockedCount;
       this.cropsUnlocked = saved.cropsUnlocked || this.cropsUnlocked;
+      this.parcelsRevealed = saved.parcelsRevealed || this.money >= LAND_REVEAL_THRESHOLD;
       this.updateMoneyText();
       for (let row = 0; row < GRID_ROWS; row++) {
         for (let col = 0; col < GRID_COLS; col++) {
@@ -756,6 +787,7 @@ class Farm extends Phaser.Scene {
     this.money = INITIAL_MONEY;
     this.updateMoneyText();
     localStorage.removeItem('seedSynthesisSave');
+    localStorage.removeItem('introShown');
     this.clearSelection();
     if (this.bannerVisible) {
       this.bannerImage.setVisible(false);
@@ -774,6 +806,7 @@ class Farm extends Phaser.Scene {
 
     this.parcelsUnlocked = Array(9).fill(false);
     this.parcelsUnlocked[4] = true;
+    this.parcelsRevealed = this.money >= LAND_REVEAL_THRESHOLD;
     this.unlockedCount = 1;
     this.cropsUnlocked = {
       carrot: true,
@@ -792,11 +825,15 @@ class Farm extends Phaser.Scene {
       const unlocked = this.parcelsUnlocked[i];
       const startRow = Math.floor(i / 3) * PARCEL_SIZE;
       const startCol = (i % 3) * PARCEL_SIZE;
+      const visible = i === 4 || this.parcelsRevealed;
       for (let r = 0; r < PARCEL_SIZE; r++) {
         for (let c = 0; c < PARCEL_SIZE; c++) {
           const row = startRow + r;
           const col = startCol + c;
-          if (unlocked) {
+          this.tileSprites[row][col].setVisible(visible);
+          if (!visible) {
+            this.lockTints[row][col].setVisible(false);
+          } else if (unlocked) {
             if (this.lockTints[row][col].visible) {
               this.tweens.add({
                 targets: [this.lockTints[row][col]],
@@ -818,7 +855,7 @@ class Farm extends Phaser.Scene {
         this.unlockButtons[i] = null;
       }
 
-      if (!unlocked && this.isParcelEligible(i)) {
+      if (visible && !unlocked && this.isParcelEligible(i)) {
         const center = this.getParcelCenter(i);
         const btn = this.add.image(center.x, center.y, 'ui_unlock')
           .setDisplaySize(
