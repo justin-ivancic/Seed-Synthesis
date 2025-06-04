@@ -33,7 +33,11 @@ const CANVAS_HEIGHT          = GRID_ROWS * TILE_SIZE;
 
 const INITIAL_MONEY   = 100;
 const BANNER_DURATION = 2000; // milliseconds
-const VERSION = "v.0.1.1";
+const PARCEL_SIZE     = 5;
+const UNLOCK_PRICES   = [
+  1000, 5000, 10000, 25000, 100000, 200000, 300000, 1000000
+];
+const VERSION = "v.0.1.2";
 
 class Boot extends Phaser.Scene {
   constructor() {
@@ -55,6 +59,7 @@ class Boot extends Phaser.Scene {
     this.load.image('ui_money',             'assets/default/ui_money.png');
     this.load.image('ui_clearcropselection','assets/default/ui_clearcropselection.png');
     this.load.image('ui_newgame',          'assets/default/ui_newgame.png');
+    this.load.image('ui_unlock',           'assets/default/ui_unlock.png');
     this.load.image('char_farmgirl',       'assets/default/char_farmgirl.png');
     // Also load these unused assets so they’re available:
     this.load.image('ui_lab',   'assets/default/ui_lab.png');
@@ -120,6 +125,13 @@ class Farm extends Phaser.Scene {
     // a. Initialize State Variables
     this.gridState    = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
     this.plantSprites = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
+    this.tileSprites  = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
+    this.lockTints    = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
+    this.lockIcons    = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
+    this.unlockButtons = Array(9).fill(null);
+    this.parcelsUnlocked = Array(9).fill(false);
+    this.parcelsUnlocked[4] = true;
+    this.unlockedCount = 1;
     this.money         = INITIAL_MONEY;
     this.selectedCrop  = null;
     this.ghostSprite   = null;
@@ -128,14 +140,27 @@ class Farm extends Phaser.Scene {
     this.farmGirlShown = localStorage.getItem('farmGirlShown') === 'true';
     this.farmGirlTimer = null;
 
-    // b. Draw the 15×15 Grid Background
+    // b. Draw the 15×15 Grid Background and lock overlays
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS; col++) {
         let x = SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE / 2;
         let y = row * TILE_SIZE + TILE_SIZE / 2;
-        this.add.image(x, y, 'tile_empty')
+        const tile = this.add.image(x, y, 'tile_empty')
           .setDisplaySize(TILE_SPRITE_SIZE.width, TILE_SPRITE_SIZE.height);
+        this.tileSprites[row][col] = tile;
         this.plantSprites[row][col] = null;
+        const tint = this.add.image(x, y, 'tile_empty')
+          .setDisplaySize(TILE_SPRITE_SIZE.width, TILE_SPRITE_SIZE.height)
+          .setTint(0x555555)
+          .setAlpha(0.6)
+          .setVisible(false)
+          .setDepth(400);
+        this.lockTints[row][col] = tint;
+        const lockIcon = this.add.image(x, y, 'ui_unlock')
+          .setDisplaySize(16,16)
+          .setVisible(false)
+          .setDepth(401);
+        this.lockIcons[row][col] = lockIcon;
       }
     }
 
@@ -151,6 +176,28 @@ class Farm extends Phaser.Scene {
     { font: "18px Arial", fill: "#ffffff" }
   );
   this.moneyText.setDepth(1000);
+
+    // Tooltip for unlock buttons
+    this.unlockTooltip = this.add.text(0, 0, '', {
+      font: '12px Arial',
+      fill: '#ffffff',
+      backgroundColor: '#000000'
+    })
+      .setPadding(4)
+      .setVisible(false)
+      .setDepth(1100);
+
+    // Confirmation banner for unlocking parcels
+    this.confirmContainer = this.add.container(0, 0).setVisible(false).setDepth(1100);
+    const confirmBg = this.add.rectangle(0, 0, 220, 50, 0x000000, 0.8);
+    this.confirmText = this.add.text(0, -10, '', { font: '14px Arial', fill: '#ffffff' }).setOrigin(0.5);
+    this.confirmYes = this.add.text(-30, 10, '[Yes]', { font: '14px Arial', fill: '#00ff00' })
+      .setOrigin(0.5)
+      .setInteractive();
+    this.confirmNo  = this.add.text(30, 10, '[No]', { font: '14px Arial', fill: '#ff0000' })
+      .setOrigin(0.5)
+      .setInteractive();
+    this.confirmContainer.add([confirmBg, this.confirmText, this.confirmYes, this.confirmNo]);
 
     // 2. Banner Placeholder
     this.bannerImage = this.add.image(
@@ -316,7 +363,27 @@ class Farm extends Phaser.Scene {
     this.input.removeAllListeners('pointermove');
   }
 
+  getParcelIndex(row, col) {
+    const r = Math.floor(row / PARCEL_SIZE);
+    const c = Math.floor(col / PARCEL_SIZE);
+    return r * 3 + c;
+  }
+
+  getParcelCenter(index) {
+    const r = Math.floor(index / 3);
+    const c = index % 3;
+    const row = r * PARCEL_SIZE + 2;
+    const col = c * PARCEL_SIZE + 2;
+    return {
+      x: SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE / 2,
+      y: row * TILE_SIZE + TILE_SIZE / 2
+    };
+  }
+
   attemptPlantOrHarvest(row, col) {
+    if (!this.parcelsUnlocked[this.getParcelIndex(row, col)]) {
+      return;
+    }
     let cell = this.gridState[row][col];
     let now = Date.now();
 
@@ -411,6 +478,8 @@ class Farm extends Phaser.Scene {
   saveGame() {
     const saveData = {
       money: this.money,
+      parcelsUnlocked: this.parcelsUnlocked,
+      unlockedCount: this.unlockedCount,
       gridState: this.gridState.map(row =>
         row.map(cell => cell
           ? { cropType: cell.cropType, plantedAt: cell.plantedAt, growthTime: cell.growthTime }
@@ -425,6 +494,8 @@ class Farm extends Phaser.Scene {
     let saved = JSON.parse(localStorage.getItem('seedSynthesisSave'));
     if (saved) {
       this.money = saved.money;
+      this.parcelsUnlocked = saved.parcelsUnlocked || this.parcelsUnlocked;
+      this.unlockedCount = saved.unlockedCount || this.unlockedCount;
       this.updateMoneyText();
       for (let row = 0; row < GRID_ROWS; row++) {
         for (let col = 0; col < GRID_COLS; col++) {
@@ -450,6 +521,7 @@ class Farm extends Phaser.Scene {
         }
       }
     }
+    this.updateParcelVisuals();
   }
 
   resetGame() {
@@ -480,6 +552,106 @@ class Farm extends Phaser.Scene {
     }
     this.farmGirlSprite.setVisible(false);
     this.farmGirlText.setVisible(false);
+
+    this.parcelsUnlocked = Array(9).fill(false);
+    this.parcelsUnlocked[4] = true;
+    this.unlockedCount = 1;
+    this.updateParcelVisuals();
+  }
+
+  updateParcelVisuals() {
+    for (let i = 0; i < 9; i++) {
+      const unlocked = this.parcelsUnlocked[i];
+      const startRow = Math.floor(i / 3) * PARCEL_SIZE;
+      const startCol = (i % 3) * PARCEL_SIZE;
+      for (let r = 0; r < PARCEL_SIZE; r++) {
+        for (let c = 0; c < PARCEL_SIZE; c++) {
+          const row = startRow + r;
+          const col = startCol + c;
+          if (unlocked) {
+            if (this.lockTints[row][col].visible) {
+              this.tweens.add({
+                targets: [this.lockTints[row][col], this.lockIcons[row][col]],
+                alpha: 0,
+                duration: 200,
+                onComplete: () => {
+                  this.lockTints[row][col].setVisible(false).setAlpha(0.6);
+                  this.lockIcons[row][col].setVisible(false).setAlpha(1);
+                }
+              });
+            }
+          } else {
+            this.lockTints[row][col].setVisible(true).setAlpha(0.6);
+            this.lockIcons[row][col].setVisible(true).setAlpha(1);
+          }
+        }
+      }
+
+      if (this.unlockButtons[i]) {
+        this.unlockButtons[i].destroy();
+        this.unlockButtons[i] = null;
+      }
+
+      if (!unlocked && this.isParcelEligible(i)) {
+        const center = this.getParcelCenter(i);
+        const btn = this.add.image(center.x, center.y, 'ui_unlock')
+          .setDisplaySize(32,32)
+          .setInteractive()
+          .setDepth(1000);
+        btn.on('pointerover', () => {
+          const cost = UNLOCK_PRICES[this.unlockedCount - 1];
+          this.unlockTooltip.setText(`Unlock Cost: $${cost} - Click to purchase`)
+            .setPosition(center.x, center.y - 20)
+            .setVisible(true);
+        });
+        btn.on('pointerout', () => {
+          this.unlockTooltip.setVisible(false);
+        });
+        btn.on('pointerdown', () => {
+          this.showUnlockConfirm(i);
+        });
+        this.unlockButtons[i] = btn;
+      }
+    }
+  }
+
+  isParcelEligible(index) {
+    const r = Math.floor(index / 3);
+    const c = index % 3;
+    const neighbors = [];
+    if (r > 0) neighbors.push((r - 1) * 3 + c);
+    if (r < 2) neighbors.push((r + 1) * 3 + c);
+    if (c > 0) neighbors.push(r * 3 + (c - 1));
+    if (c < 2) neighbors.push(r * 3 + (c + 1));
+    return neighbors.some(n => this.parcelsUnlocked[n]);
+  }
+
+  showUnlockConfirm(index) {
+    const cost = UNLOCK_PRICES[this.unlockedCount - 1];
+    const center = this.getParcelCenter(index);
+    const bannerY = TILE_SIZE * 1.5;
+    this.confirmText.setText(`Purchase Parcel ${index} for $${cost}?`);
+    this.confirmContainer.setPosition(center.x, bannerY);
+    this.confirmContainer.setVisible(true);
+    this.confirmYes.removeAllListeners('pointerdown');
+    this.confirmNo.removeAllListeners('pointerdown');
+    this.confirmYes.on('pointerdown', () => {
+      if (this.money >= cost) {
+        this.money -= cost;
+        this.updateMoneyText();
+        this.parcelsUnlocked[index] = true;
+        this.unlockedCount++;
+        this.confirmContainer.setVisible(false);
+        this.saveGame();
+        this.updateParcelVisuals();
+      } else {
+        this.showBanner();
+        this.confirmContainer.setVisible(false);
+      }
+    });
+    this.confirmNo.on('pointerdown', () => {
+      this.confirmContainer.setVisible(false);
+    });
   }
 
   updateGrowth() {
