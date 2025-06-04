@@ -6,6 +6,28 @@
   <style>html,body{margin:0;background:#222}</style>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
   <script type="module" src="game.js"></script>
+  <style>
+    #scaleSlider {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 10000;
+    }
+  </style>
 </head>
-<body></body>
+<body>
+  <input id="scaleSlider" type="range" min="0.5" max="2" value="1" step="0.1">
+  <script>
+    const slider = document.getElementById('scaleSlider');
+    const canvas = document.querySelector('canvas');
+    function updateScale() {
+      const scale = parseFloat(slider.value);
+      canvas.style.transformOrigin = 'top left';
+      canvas.style.transform = `scale(${scale})`;
+    }
+    slider.addEventListener('input', updateScale);
+    // Apply initial scale once the canvas is available
+    window.addEventListener('load', updateScale);
+  </script>
+</body>
 </html>
