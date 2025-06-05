@@ -31,7 +31,7 @@ const CROP_TEXT_SIZE         = 18;
 
 const TILE_SPRITE_SIZE       = { width: 48, height: 48 };
 const CROP_SPRITE_SIZE       = { width: 48, height: 48 };
-const UI_MONEY_SIZE          = { width: 36, height: 36 };
+const UI_MONEY_SIZE          = { width: 48, height: 48 };
 const UI_BANNER_SIZE         = { width: 144, height: 144 };  // banner icon enlarged 3x
 const UI_CLEAR_BUTTON_SIZE   = { width: 48, height: 48 };
 const UI_NEWGAME_BUTTON_SIZE = { width: 48, height: 48 };
@@ -240,16 +240,18 @@ class Farm extends Phaser.Scene {
     // c. Sidebar UI
     // 1. Money Display
     let moneyX = this.offsetX + SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE) / 2 - TILE_SIZE;
-    let moneyY = this.offsetY - TILE_SIZE / 2;
-  this.add.image(moneyX, moneyY, 'ui_money')
-    .setDisplaySize(UI_MONEY_SIZE.width, UI_MONEY_SIZE.height)
-    .setDepth(1000);
-  this.moneyText = this.add.text(
-    moneyX + TILE_SIZE / 2 + 4, moneyY,
-    "$" + this.money,
-    { font: "18px Arial", fill: "#ffffff" }
-  );
-  this.moneyText.setDepth(1000);
+    let moneyY = this.offsetY - TILE_SIZE * 0.75;
+    this.add.image(moneyX, moneyY, 'ui_money')
+      .setDisplaySize(UI_MONEY_SIZE.width, UI_MONEY_SIZE.height)
+      .setDepth(1000);
+    this.moneyText = this.add.text(
+      moneyX + TILE_SIZE / 2 + 4,
+      moneyY,
+      "$" + this.money,
+      { font: "22px Arial", fill: "#ffffff" }
+    )
+      .setOrigin(0, 0.5);
+    this.moneyText.setDepth(1000);
 
     // Tooltip for unlock buttons
     this.unlockTooltip = this.add.text(0, 0, '', {
