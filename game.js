@@ -79,6 +79,7 @@ const INTRO_DISPLAY_TIME  = 5000;
 const BOUNCE_PIXELS   = 3;      // vertical bounce amount
 const BOUNCE_SCALE    = 0.05;   // ±5% scale change
 const BOUNCE_DURATION = 1000;   // duration of bounce cycle
+const BOUNCE_REPEAT   = 1;      // number of extra bounce cycles
 
 class Boot extends Phaser.Scene {
   constructor() {
@@ -765,6 +766,28 @@ class Farm extends Phaser.Scene {
     });
   }
 
+  startBounce(sprite) {
+    sprite.setDisplaySize(
+      CROP_SPRITE_SIZE.width,
+      CROP_SPRITE_SIZE.height
+    );
+    sprite.baseScaleX = sprite.scaleX;
+    sprite.baseScaleY = sprite.scaleY;
+    sprite.bounceTween = this.tweens.add({
+      targets: sprite,
+      y: sprite.y - BOUNCE_PIXELS,
+      scaleX: sprite.baseScaleX * (1 + BOUNCE_SCALE),
+      scaleY: sprite.baseScaleY * (1 + BOUNCE_SCALE),
+      duration: BOUNCE_DURATION,
+      yoyo: true,
+      repeat: BOUNCE_REPEAT,
+      onComplete: () => {
+        sprite.bounceTween = null;
+      }
+    });
+    sprite.bouncePlayed = true;
+  }
+
   updateMoneyText() {
     this.moneyText.setText("$" + this.money);
     if (!this.parcelsRevealed && this.money >= LAND_REVEAL_THRESHOLD) {
@@ -817,21 +840,7 @@ class Farm extends Phaser.Scene {
             let y = this.offsetY + row * TILE_SIZE + TILE_SIZE/2;
             let sprite = this.add.image(x, y, 'crop_' + cell.cropType);
             if (progress >= 1) {
-              sprite.setDisplaySize(
-                CROP_SPRITE_SIZE.width,
-                CROP_SPRITE_SIZE.height
-              );
-              sprite.baseScaleX = sprite.scaleX;
-              sprite.baseScaleY = sprite.scaleY;
-              sprite.bounceTween = this.tweens.add({
-                targets: sprite,
-                y: sprite.y - BOUNCE_PIXELS,
-                scaleX: sprite.baseScaleX * (1 + BOUNCE_SCALE),
-                scaleY: sprite.baseScaleY * (1 + BOUNCE_SCALE),
-                duration: BOUNCE_DURATION,
-                yoyo: true,
-                repeat: -1
-              });
+              this.startBounce(sprite);
             } else {
               let scale = 0.1 + 0.9 * progress;
               sprite.setDisplaySize(
@@ -1078,22 +1087,13 @@ class Farm extends Phaser.Scene {
           let progress = Phaser.Math.Clamp(elapsed / cell.growthTime, 0, 1);
           let sprite = this.plantSprites[row][col];
           if (progress >= 1) {
-            if (!sprite.bounceTween) {
+            if (!sprite.bouncePlayed) {
+              this.startBounce(sprite);
+            } else if (!sprite.bounceTween) {
               sprite.setDisplaySize(
                 CROP_SPRITE_SIZE.width,
                 CROP_SPRITE_SIZE.height
               );
-              sprite.baseScaleX = sprite.scaleX;
-              sprite.baseScaleY = sprite.scaleY;
-              sprite.bounceTween = this.tweens.add({
-                targets: sprite,
-                y: sprite.y - BOUNCE_PIXELS,
-                scaleX: sprite.baseScaleX * (1 + BOUNCE_SCALE),
-                scaleY: sprite.baseScaleY * (1 + BOUNCE_SCALE),
-                duration: BOUNCE_DURATION,
-                yoyo: true,
-                repeat: -1
-              });
             }
           } else {
             let scale = 0.1 + 0.9 * progress;
