@@ -49,8 +49,9 @@ const UNLOCK_PRICES   = [
   1000, 5000, 10000, 25000, 100000, 200000, 300000, 1000000
 ];
 const LAND_REVEAL_THRESHOLD = 500;
-const VERSION = "v.0.2.3";
+const VERSION = "v.0.2.4";
 const SAVE_VERSION = 2;
+const SAVE_KEY = 'seedSynthesisSave';
 
 function upgradeSaveData(saved) {
   if (!saved) return null;
@@ -144,7 +145,7 @@ class Title extends Phaser.Scene {
       .setDisplaySize(UI_PLAY_BUTTON_SIZE.width, UI_PLAY_BUTTON_SIZE.height)
       .setInteractive();
     playButton.on('pointerdown', () => {
-      const hasSave  = !!localStorage.getItem('seedSynthesisSave');
+      const hasSave  = !!localStorage.getItem(SAVE_KEY);
       const introSeen = localStorage.getItem('introShown') === 'true';
       this.scene.start('Farm', { showIntro: !hasSave && !introSeen });
     });
@@ -195,6 +196,7 @@ class Farm extends Phaser.Scene {
     this.money         = INITIAL_MONEY;
     this.parcelsRevealed = this.money >= LAND_REVEAL_THRESHOLD;
     this.selectedCrop  = null;
+    this.activeCells   = new Map();
     this.ghostSprite   = null;
     this.ghostHideTimer = null;
     this.isPointerDown = false;
@@ -589,6 +591,7 @@ class Farm extends Phaser.Scene {
         growthTime: CROP_DATA[cropType].growthTime,
         harvestsLeft: CROP_DATA[cropType].harvests
       };
+      this.activeCells.set(`${row},${col}`, { row, col });
       this.saveGame();
     }
   }
@@ -638,6 +641,7 @@ class Farm extends Phaser.Scene {
     } else {
       this.plantSprites[row][col] = null;
       this.gridState[row][col] = null;
+      this.activeCells.delete(`${row},${col}`);
     }
     this.saveGame();
   }
@@ -790,11 +794,11 @@ class Farm extends Phaser.Scene {
         )
       )
     };
-    localStorage.setItem('seedSynthesisSave', JSON.stringify(saveData));
+    localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
   }
 
   loadGame() {
-    let saved = JSON.parse(localStorage.getItem('seedSynthesisSave'));
+    let saved = JSON.parse(localStorage.getItem(SAVE_KEY));
     saved = upgradeSaveData(saved);
     if (saved) {
       this.money = saved.money;
@@ -842,6 +846,7 @@ class Farm extends Phaser.Scene {
               growthTime:  cell.growthTime,
               harvestsLeft: cell.harvestsLeft !== undefined ? cell.harvestsLeft : CROP_DATA[cell.cropType].harvests
             };
+            this.activeCells.set(`${row},${col}`, { row, col });
           }
         }
       }
@@ -864,9 +869,10 @@ class Farm extends Phaser.Scene {
         this.gridState[row][col] = null;
       }
     }
+    this.activeCells.clear();
     this.money = INITIAL_MONEY;
     this.updateMoneyText();
-    localStorage.removeItem('seedSynthesisSave');
+    localStorage.removeItem(SAVE_KEY);
     localStorage.removeItem('introShown');
     this.clearSelection();
     if (this.bannerVisible) {
@@ -1065,10 +1071,9 @@ class Farm extends Phaser.Scene {
   }
 
   updateGrowth() {
-    for (let row = 0; row < GRID_ROWS; row++) {
-      for (let col = 0; col < GRID_COLS; col++) {
-        let cell = this.gridState[row][col];
-        if (cell !== null) {
+    for (const { row, col } of this.activeCells.values()) {
+      const cell = this.gridState[row][col];
+      if (cell) {
           let elapsed = (Date.now() - cell.plantedAt) / 1000;
           let progress = Phaser.Math.Clamp(elapsed / cell.growthTime, 0, 1);
           let sprite = this.plantSprites[row][col];
@@ -1097,7 +1102,6 @@ class Farm extends Phaser.Scene {
               CROP_SPRITE_SIZE.height * scale
             );
           }
-        }
       }
     }
   }
