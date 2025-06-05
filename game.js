@@ -49,7 +49,7 @@ const UNLOCK_PRICES   = [
   1000, 5000, 10000, 25000, 100000, 200000, 300000, 1000000
 ];
 const LAND_REVEAL_THRESHOLD = 500;
-const VERSION = "v.0.2.2";
+const VERSION = "v.0.2.3";
 const SAVE_VERSION = 2;
 
 function upgradeSaveData(saved) {
@@ -340,10 +340,14 @@ class Farm extends Phaser.Scene {
                          .setDepth(1000);
       icon.on('pointerdown', () => { this.selectCrop(cropKey); });
       icon.on('pointerover', pointer => {
+        const harvests = CROP_DATA[cropKey].harvests;
+        const harvestText =
+          `Harvests: ${harvests} ${harvests === 1 ? 'time' : 'times'}`;
         const text =
           `Cost: $${CROP_DATA[cropKey].seedCost}\n` +
           `Sell: $${CROP_DATA[cropKey].harvestPrice}\n` +
-          `Time: ${CROP_DATA[cropKey].growthTime}s`;
+          `Time: ${CROP_DATA[cropKey].growthTime}s\n` +
+          harvestText;
         this.cropTooltip.setText(text)
           .setPosition(pointer.x + 10, pointer.y + 10)
           .setVisible(true);
