@@ -49,7 +49,7 @@ const UNLOCK_PRICES   = [
   1000, 5000, 10000, 25000, 100000, 200000, 300000, 1000000
 ];
 const LAND_REVEAL_THRESHOLD = 500;
-const VERSION = "v.0.2.4";
+const VERSION = "v.0.2.5";
 const SAVE_VERSION = 2;
 const SAVE_KEY = 'seedSynthesisSave';
 
@@ -79,7 +79,7 @@ const INTRO_DISPLAY_TIME  = 5000;
 const BOUNCE_PIXELS   = 3;      // vertical bounce amount
 const BOUNCE_SCALE    = 0.05;   // ±5% scale change
 const BOUNCE_DURATION = 1000;   // duration of bounce cycle
-const BOUNCE_REPEAT   = 1;      // number of extra bounce cycles
+const BOUNCE_REPEAT   = -1;     // repeat count (-1 for infinite)
 
 class Boot extends Phaser.Scene {
   constructor() {
@@ -780,10 +780,7 @@ class Farm extends Phaser.Scene {
       scaleY: sprite.baseScaleY * (1 + BOUNCE_SCALE),
       duration: BOUNCE_DURATION,
       yoyo: true,
-      repeat: BOUNCE_REPEAT,
-      onComplete: () => {
-        sprite.bounceTween = null;
-      }
+      repeat: BOUNCE_REPEAT
     });
     sprite.bouncePlayed = true;
   }
