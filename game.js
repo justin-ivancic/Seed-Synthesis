@@ -196,6 +196,9 @@ class Farm extends Phaser.Scene {
     this.parcelsRevealed = this.money >= LAND_REVEAL_THRESHOLD;
     this.selectedCrop  = null;
     this.ghostSprite   = null;
+    this.isPointerDown = false;
+    this.lastPointerRow = null;
+    this.lastPointerCol = null;
     this.bannerVisible = false;
     this.bannerTimer   = null;
     this.farmGirlShown = localStorage.getItem('farmGirlShown') === 'true';
@@ -370,7 +373,15 @@ class Farm extends Phaser.Scene {
       let col = Math.floor(worldX / TILE_SIZE);
       let row = Math.floor(worldY / TILE_SIZE);
       if (row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS) return;
+      this.isPointerDown = true;
+      this.lastPointerRow = row;
+      this.lastPointerCol = col;
       this.attemptPlantOrHarvest(row, col);
+    });
+    this.input.on('pointerup', () => {
+      this.isPointerDown = false;
+      this.lastPointerRow = null;
+      this.lastPointerCol = null;
     });
 
     // j. ESC Key to Return to Title
@@ -433,6 +444,11 @@ class Farm extends Phaser.Scene {
           this.offsetX + SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2,
           this.offsetY + row * TILE_SIZE + TILE_SIZE/2
         );
+        if (this.isPointerDown && (row !== this.lastPointerRow || col !== this.lastPointerCol)) {
+          this.lastPointerRow = row;
+          this.lastPointerCol = col;
+          this.attemptPlantOrHarvest(row, col);
+        }
       } else {
         this.ghostSprite.setVisible(false);
       }
