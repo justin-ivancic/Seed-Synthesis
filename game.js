@@ -20,24 +20,24 @@ const CROP_UNLOCK_PRICES = {
 // ---------------------------------------------------------------------------
 // Asset Scale and Layout Constants
 // ---------------------------------------------------------------------------
-const TILE_SIZE              = 32;           // base size for the grid
+const TILE_SIZE              = 48;           // base size for the grid
 const GRID_ROWS              = 15;
 const GRID_COLS              = 15;
 const SIDEBAR_WIDTH          = TILE_SIZE * 2; // width of crop list sidebar
 const RIGHT_SIDEBAR_WIDTH    = TILE_SIZE * 2; // space on right for buttons
 
 const CROP_ICON_SPACING      = TILE_SIZE * 1.5; // vertical spacing for crop icons
-const CROP_TEXT_SIZE         = 12;
+const CROP_TEXT_SIZE         = 18;
 
-const TILE_SPRITE_SIZE       = { width: 32, height: 32 };
-const CROP_SPRITE_SIZE       = { width: 32, height: 32 };
-const UI_MONEY_SIZE          = { width: 24, height: 24 };
-const UI_BANNER_SIZE         = { width: 96, height: 96 };  // banner icon enlarged 3x
-const UI_CLEAR_BUTTON_SIZE   = { width: 32, height: 32 };
-const UI_NEWGAME_BUTTON_SIZE = { width: 32, height: 32 };
-const UI_UNLOCK_BUTTON_SIZE = { width: 32, height: 32 }; // unlock button base size
-const UI_PLAY_BUTTON_SIZE    = { width: 64, height: 64 }; // play button enlarged 2x
-const FARM_GIRL_SIZE         = { width: 160, height: 160 }; // congratulatory sprite size
+const TILE_SPRITE_SIZE       = { width: 48, height: 48 };
+const CROP_SPRITE_SIZE       = { width: 48, height: 48 };
+const UI_MONEY_SIZE          = { width: 36, height: 36 };
+const UI_BANNER_SIZE         = { width: 144, height: 144 };  // banner icon enlarged 3x
+const UI_CLEAR_BUTTON_SIZE   = { width: 48, height: 48 };
+const UI_NEWGAME_BUTTON_SIZE = { width: 48, height: 48 };
+const UI_UNLOCK_BUTTON_SIZE = { width: 48, height: 48 }; // unlock button base size
+const UI_PLAY_BUTTON_SIZE    = { width: 96, height: 96 }; // play button enlarged 2x
+const FARM_GIRL_SIZE         = { width: 240, height: 240 }; // congratulatory sprite size
 
 let CANVAS_WIDTH            = window.innerWidth;
 let CANVAS_HEIGHT           = window.innerHeight;
@@ -49,7 +49,7 @@ const UNLOCK_PRICES   = [
   1000, 5000, 10000, 25000, 100000, 200000, 300000, 1000000
 ];
 const LAND_REVEAL_THRESHOLD = 500;
-const VERSION = "v.0.2.0";
+const VERSION = "v.0.2.2";
 const SAVE_VERSION = 2;
 
 function upgradeSaveData(saved) {
@@ -68,7 +68,7 @@ function upgradeSaveData(saved) {
 }
 
 // Margin around the edges of the canvas where no game objects are placed
-const BUFFER_MARGIN = 32;
+const BUFFER_MARGIN = 48;
 
 // Intro timing constants (in milliseconds)
 const INTRO_FADE_DURATION = 500;
@@ -196,6 +196,7 @@ class Farm extends Phaser.Scene {
     this.parcelsRevealed = this.money >= LAND_REVEAL_THRESHOLD;
     this.selectedCrop  = null;
     this.ghostSprite   = null;
+    this.ghostHideTimer = null;
     this.isPointerDown = false;
     this.lastPointerRow = null;
     this.lastPointerCol = null;
@@ -239,11 +240,12 @@ class Farm extends Phaser.Scene {
     // c. Sidebar UI
     // 1. Money Display
     let moneyX = this.offsetX + SIDEBAR_WIDTH + (GRID_COLS * TILE_SIZE) / 2 - TILE_SIZE;
-  this.add.image(moneyX, this.offsetY + TILE_SIZE / 2, 'ui_money')
+    let moneyY = this.offsetY - TILE_SIZE / 2;
+  this.add.image(moneyX, moneyY, 'ui_money')
     .setDisplaySize(UI_MONEY_SIZE.width, UI_MONEY_SIZE.height)
     .setDepth(1000);
   this.moneyText = this.add.text(
-    moneyX + TILE_SIZE / 2 + 4, this.offsetY + TILE_SIZE / 2,
+    moneyX + TILE_SIZE / 2 + 4, moneyY,
     "$" + this.money,
     { font: "18px Arial", fill: "#ffffff" }
   );
@@ -439,7 +441,11 @@ class Farm extends Phaser.Scene {
         col >= 0 && col < GRID_COLS &&
         this.gridState[row][col] === null
       ) {
-        this.ghostSprite.setVisible(true);
+        if (!this.ghostHideTimer) {
+          this.ghostSprite.setVisible(true);
+        } else {
+          this.ghostSprite.setVisible(false);
+        }
         this.ghostSprite.setPosition(
           this.offsetX + SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2,
           this.offsetY + row * TILE_SIZE + TILE_SIZE/2
@@ -460,6 +466,10 @@ class Farm extends Phaser.Scene {
     if (this.ghostSprite) {
       this.ghostSprite.destroy();
       this.ghostSprite = null;
+    }
+    if (this.ghostHideTimer) {
+      this.ghostHideTimer.remove();
+      this.ghostHideTimer = null;
     }
     this.input.removeAllListeners('pointermove');
   }
@@ -515,6 +525,33 @@ class Farm extends Phaser.Scene {
       // Deduct cost, update money
       this.money -= cost;
       this.updateMoneyText();
+
+      // Hide the cursor ghost while the planting animation plays
+      if (this.ghostSprite) {
+        this.ghostSprite.setVisible(false);
+        if (this.ghostHideTimer) {
+          this.ghostHideTimer.remove();
+        }
+        this.ghostHideTimer = this.time.delayedCall(150, () => {
+          this.ghostHideTimer = null;
+          if (!this.ghostSprite) return;
+          const pointer = this.input.activePointer;
+          let worldX = pointer.x - this.offsetX - SIDEBAR_WIDTH;
+          let worldY = pointer.y - this.offsetY;
+          let c = Math.floor(worldX / TILE_SIZE);
+          let r = Math.floor(worldY / TILE_SIZE);
+          if (
+            r >= 0 && r < GRID_ROWS &&
+            c >= 0 && c < GRID_COLS &&
+            this.gridState[r][c] === null
+          ) {
+            this.ghostSprite.setPosition(
+              this.offsetX + SIDEBAR_WIDTH + c * TILE_SIZE + TILE_SIZE/2,
+              this.offsetY + r * TILE_SIZE + TILE_SIZE/2
+            ).setVisible(true);
+          }
+        });
+      }
 
       // Animate planting by scaling a temporary ghost into the ground
       let x = this.offsetX + SIDEBAR_WIDTH + col * TILE_SIZE + TILE_SIZE/2;
